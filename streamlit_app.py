@@ -266,8 +266,9 @@ class SampleSizeCalculator:
         q0 = 1 - population_prop
         q1 = 1 - sample_prop
         
-        # Sample size calculation using the exact ClinCalc formula
-        numerator = (population_prop * q0) * (z_alpha + z_beta * math.sqrt((sample_prop * q1)/(population_prop * q0))) ** 2
+        # Correct sample size calculation for one-sample proportion test
+        # N = [z_alpha * sqrt(p0*q0) + z_beta * sqrt(p1*q1)]^2 / (p1 - p0)^2
+        numerator = (z_alpha * math.sqrt(population_prop * q0) + z_beta * math.sqrt(sample_prop * q1)) ** 2
         denominator = (sample_prop - population_prop) ** 2
         
         n = numerator / denominator
@@ -636,22 +637,15 @@ def generate_multiple_citations(study_design, outcome_type, params, results):
     param_str = f"α={params.get('alpha', 0.05)}, β={1-params.get('power', 0.80):.1f}, power={params.get('power', 0.80)*100:.0f}%"
     
     citations = {
-        "APA": f"ClinCalc Sample Size Calculator. ({current_date.year}). Sample size calculation for {study_desc}, {outcome_desc} outcome. "
-               f"Statistical parameters: {param_str}. Results: {size_info}. Retrieved {date_accessed}, from https://github.com/ArioMoniri/samplecalc",
+        "APA": f"ClinCalc Sample Size Calculator. ({current_date.year}). Sample size calculation for {study_desc}, {outcome_desc} outcome. Statistical parameters: {param_str}. Results: {size_info}. Retrieved {date_accessed}, from https://github.com/your-repo/clincalc-clone",
         
-        "MLA": f"Sample Size Calculator. ClinCalc, {current_date.year}, github.com/ArioMoniri/samplecalc. Accessed {date_mla}. "
-               f"Study design: {study_desc}, {outcome_desc}. Parameters: {param_str}. Sample size: {size_info}.",
+        "MLA": f'"Sample Size Calculator." ClinCalc, {current_date.year}, github.com/your-repo/clincalc-clone. Accessed {date_mla}. Study design: {study_desc}, {outcome_desc}. Parameters: {param_str}. Sample size: {size_info}.',
         
-        "Chicago": f"ClinCalc Sample Size Calculator. \"Sample Size Calculation Results.\" GitHub. Accessed {date_accessed}. "
-                   f"https://github.com/ArioMoniri/samplecalc. Study: {study_desc}, {outcome_desc}. {param_str}. Required sample size: {size_info}.",
+        "Chicago": f"ClinCalc Sample Size Calculator. "Sample Size Calculation Results." GitHub. Accessed {date_accessed}. https://github.com/your-repo/clincalc-clone. Study: {study_desc}, {outcome_desc}. {param_str}. Required sample size: {size_info}.",
         
-        "Vancouver": f"ClinCalc Sample Size Calculator [Internet]. Sample size calculation for {study_desc} study with {outcome_desc} outcome. "
-                     f"{param_str}. Sample size required: {size_info}. [cited {current_date.year} {current_date.strftime('%b %d')}]. "
-                     f"Available from: https://github.com/ArioMoniri/samplecalc",
+        "Vancouver": f"ClinCalc Sample Size Calculator [Internet]. Sample size calculation for {study_desc} study with {outcome_desc} outcome. {param_str}. Sample size required: {size_info}. [cited {current_date.year} {current_date.strftime('%b %d')}]. Available from: https://github.com/your-repo/clincalc-clone",
         
-        "Harvard": f"ClinCalc Sample Size Calculator ({current_date.year}) Sample size calculation results. Available at: "
-                   f"https://github.com/ArioMoniri/samplecalc (Accessed: {date_accessed}). Study design: {study_desc}, outcome: {outcome_desc}. "
-                   f"Statistical parameters: {param_str}. Required sample size: {size_info}."
+        "Harvard": f"ClinCalc Sample Size Calculator ({current_date.year}) Sample size calculation results. Available at: https://github.com/your-repo/clincalc-clone (Accessed: {date_accessed}). Study design: {study_desc}, outcome: {outcome_desc}. Statistical parameters: {param_str}. Required sample size: {size_info}."
     }
     
     return citations
