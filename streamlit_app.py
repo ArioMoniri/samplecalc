@@ -1,4 +1,4 @@
-import streamlit as st
+chimport streamlit as st
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -637,15 +637,22 @@ def generate_multiple_citations(study_design, outcome_type, params, results):
     param_str = f"α={params.get('alpha', 0.05)}, β={1-params.get('power', 0.80):.1f}, power={params.get('power', 0.80)*100:.0f}%"
     
     citations = {
-        "APA": f"ClinCalc Sample Size Calculator. ({current_date.year}). Sample size calculation for {study_desc}, {outcome_desc} outcome. Statistical parameters: {param_str}. Results: {size_info}. Retrieved {date_accessed}, from https://github.com/your-repo/clincalc-clone",
+        "APA": f"ClinCalc Sample Size Calculator. ({current_date.year}). Sample size calculation for {study_desc}, {outcome_desc} outcome. "
+               f"Statistical parameters: {param_str}. Results: {size_info}. Retrieved {date_accessed}, from https://github.com/ArioMoniri/samplecalc",
         
-        "MLA": f'"Sample Size Calculator." ClinCalc, {current_date.year}, github.com/your-repo/clincalc-clone. Accessed {date_mla}. Study design: {study_desc}, {outcome_desc}. Parameters: {param_str}. Sample size: {size_info}.',
+        "MLA": f"Sample Size Calculator. ClinCalc, {current_date.year}, github.com/ArioMoniri/samplecalc. Accessed {date_mla}. "
+               f"Study design: {study_desc}, {outcome_desc}. Parameters: {param_str}. Sample size: {size_info}.",
         
-        "Chicago": f"ClinCalc Sample Size Calculator. "Sample Size Calculation Results." GitHub. Accessed {date_accessed}. https://github.com/your-repo/clincalc-clone. Study: {study_desc}, {outcome_desc}. {param_str}. Required sample size: {size_info}.",
+        "Chicago": f"ClinCalc Sample Size Calculator. \"Sample Size Calculation Results.\" GitHub. Accessed {date_accessed}. "
+                   f"https://github.com/ArioMoniri/samplecalc. Study: {study_desc}, {outcome_desc}. {param_str}. Required sample size: {size_info}.",
         
-        "Vancouver": f"ClinCalc Sample Size Calculator [Internet]. Sample size calculation for {study_desc} study with {outcome_desc} outcome. {param_str}. Sample size required: {size_info}. [cited {current_date.year} {current_date.strftime('%b %d')}]. Available from: https://github.com/your-repo/clincalc-clone",
+        "Vancouver": f"ClinCalc Sample Size Calculator [Internet]. Sample size calculation for {study_desc} study with {outcome_desc} outcome. "
+                     f"{param_str}. Sample size required: {size_info}. [cited {current_date.year} {current_date.strftime('%b %d')}]. "
+                     f"Available from: https://github.com/ArioMoniri/samplecalc",
         
-        "Harvard": f"ClinCalc Sample Size Calculator ({current_date.year}) Sample size calculation results. Available at: https://github.com/your-repo/clincalc-clone (Accessed: {date_accessed}). Study design: {study_desc}, outcome: {outcome_desc}. Statistical parameters: {param_str}. Required sample size: {size_info}."
+        "Harvard": f"ClinCalc Sample Size Calculator ({current_date.year}) Sample size calculation results. Available at: "
+                   f"https://github.com/ArioMoniri/samplecalc (Accessed: {date_accessed}). Study design: {study_desc}, outcome: {outcome_desc}. "
+                   f"Statistical parameters: {param_str}. Required sample size: {size_info}."
     }
     
     return citations
