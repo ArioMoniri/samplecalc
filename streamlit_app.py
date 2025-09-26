@@ -275,8 +275,9 @@ class SampleSizeCalculator:
         
         # Continuity correction
         if continuity_correction:
-            correction = 1 + math.sqrt(1 + 4/abs(sample_prop - population_prop)*math.sqrt(n))
-            n = n * (correction ** 2) / 4
+            # CORRECT (adds only small adjustment)
+            correction = 1 + 1/(2*n*abs(sample_prop - population_prop))
+            n = n * correction
         
         # Adjust for dropout
         if dropout_rate > 0:
