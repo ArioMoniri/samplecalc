@@ -638,7 +638,7 @@ def generate_multiple_citations(study_design, outcome_type, params, results):
     citations = {
         "APA": f"ClinCalc Sample Size Calculator. ({current_date.year}). Sample size calculation for {study_desc}, {outcome_desc} outcome. Statistical parameters: {param_str}. Results: {size_info}. Retrieved {date_accessed}, from https://github.com/ArioMoniri/samplecalc",
         
-        "MLA": f"Sample Size Calculator." ClinCalc, {current_date.year}, github.com/ArioMoniri/samplecalc. Accessed {date_mla}. Study design: {study_desc}, {outcome_desc}. Parameters: {param_str}. Sample size: {size_info}.',
+        "MLA": f"Sample Size Calculator." ClinCalc, {current_date.year}, github.com/ArioMoniri/samplecalc. Accessed {date_mla}. Study design: {study_desc}, {outcome_desc}. Parameters: {param_str}. Sample size: {size_info}.":,
         
         "Chicago": f"ClinCalc Sample Size Calculator. "Sample Size Calculation Results." GitHub. Accessed {date_accessed}. https://github.com/ArioMoniri/samplecalc. Study: {study_desc}, {outcome_desc}. {param_str}. Required sample size: {size_info}.",
         
