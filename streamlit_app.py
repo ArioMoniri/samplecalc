@@ -26,32 +26,12 @@ st.markdown("""
         color: white;
         text-align: center;
         margin-bottom: 2rem;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        
     }
     
-    .calc-container {
-        background: #ffffff;
-        padding: 1.5rem;
-        border: 1px solid #dee2e6;
-        margin-bottom: 1rem;
-    }
+
     
-    .formula-container {
-        background: #ffffff;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #dee2e6;
-        margin: 1rem 0;
-    }
-    
-    .result-container {
-        background: linear-gradient(145deg, #d4edda, #c3e6cb);
-        padding: 2rem;
-        border-radius: 15px;
-        border: 1px solid #28a745;
-        margin: 1.5rem 0;
-        box-shadow: 0 4px 15px rgba(40,167,69,0.2);
-    }
+
     
     .results-header {
         background: #6c757d;
@@ -97,19 +77,7 @@ st.markdown("""
         font-weight: bold;
     }
     
-    .visualization-container {
-        background: white;
-        padding: 1.5rem;
-        border: 1px solid #dee2e6;
-        margin: 1rem 0;
-    }
-    
-    .education-container {
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-left: 3px solid #2196f3;
-        margin: 1rem 0;
-    }
+
     
     .study-type-info {
         background: #fff3cd;
