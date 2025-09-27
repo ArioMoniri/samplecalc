@@ -692,7 +692,7 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
             
         # Similar updates for one group studies...
 
-
+        
         elif study_design == "One study group vs. population" and outcome_type == "Dichotomous (yes/no)":
                     # Proportion difference vs sample size for one group
                     population_prop = base_params.get('population_prop', 0.25)
@@ -742,6 +742,7 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
                         showlegend=True,
                         font=dict(size=14)
                     )
+                    
                     
                 elif study_design == "One study group vs. population" and outcome_type == "Continuous (means)":
                     # Effect size vs sample size for one-sample continuous
