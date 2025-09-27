@@ -133,7 +133,7 @@ st.markdown("""
         border-radius: 0 10px 10px 0;
     }
     
-    /* Fix tab title positioning */
+    /* Fix tab title positioning and remove shadows */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
     }
@@ -146,10 +146,18 @@ st.markdown("""
         gap: 1px;
         padding-top: 10px;
         padding-bottom: 10px;
+        box-shadow: none !important;
     }
     
     .stTabs [aria-selected="true"] {
         background-color: #ffffff;
+        box-shadow: none !important;
+    }
+    
+    /* Fix visualization container title positioning */
+    .visualization-container h3 {
+        margin-top: 0;
+        padding-top: 0;
     }
     
     /* Ensure consistent spacing for synchronized inputs */
@@ -696,12 +704,228 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
         st.plotly_chart(fig1, use_container_width=True)
     
     with tab2:
-        # Power Analysis implementation (similar pattern with dropout rate considerations)
-        st.info("Power analysis curves showing the relationship between statistical power and required sample size.")
+        # Power Analysis
+        powers = np.linspace(0.70, 0.95, 20)
+        power_sample_sizes = []
+        
+        for power in powers:
+            try:
+                if study_design == "Two independent study groups":
+                    if outcome_type == "Continuous (means)":
+                        # Get standard deviations with fallback
+                        std_dev_to_use = base_params.get('pooled_std', base_params.get('std_dev', 2.0))
+                        std_dev1 = base_params.get('std_dev1', std_dev_to_use)
+                        std_dev2 = base_params.get('std_dev2', std_dev_to_use)
+                        
+                        result = SampleSizeCalculator.calculate_continuous_two_groups(
+                            base_params['mean1'], base_params['mean2'],
+                            std_dev1, std_dev2, 
+                            base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes.append(result['total_unadjusted'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            base_params['p1'], base_params['p2'],
+                            base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes.append(result['total_unadjusted'])
+                else:  # One group vs population
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_one_group(
+                            base_params['sample_mean'], base_params['population_mean'],
+                            base_params['std_dev'], base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes.append(result['n_unadjusted'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_one_group(
+                            base_params['sample_prop'], base_params['population_prop'],
+                            base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes.append(result['n_unadjusted'])
+            except:
+                power_sample_sizes.append(np.nan)
+        
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(
+            x=powers, y=power_sample_sizes,
+            mode='lines+markers',
+            name='Power vs Sample Size',
+            line=dict(color='#A23B72', width=4),
+            marker=dict(size=8)
+        ))
+        
+        # Add marker for current study
+        current_power = base_params.get('power', 0.8)
+        current_sample = results.get('total_unadjusted', results.get('total', results.get('n_unadjusted', results.get('n', 0))))
+        
+        fig2.add_trace(go.Scatter(
+            x=[current_power],
+            y=[current_sample],
+            mode='markers',
+            name='Your Study Design',
+            marker=dict(size=15, color='red', symbol='star',
+                       line=dict(width=2, color='white'))
+        ))
+        
+        # Add horizontal line at current study sample size
+        fig2.add_hline(y=current_sample, line_dash="dash", line_color="red", 
+                       annotation_text=f"Your Study Sample Size = {current_sample}")
+        
+        # Add vertical line at current study power
+        fig2.add_vline(x=current_power, line_dash="dash", line_color="blue", 
+                       annotation_text=f"Your Study Power = {current_power*100:.0f}%")
+        
+        fig2.update_layout(
+            title="Statistical Power vs Required Sample Size",
+            xaxis_title="Statistical Power (1-β)",
+            yaxis_title="Sample Size Required",
+            height=500,
+            showlegend=True,
+            font=dict(size=14)
+        )
+        
+        st.plotly_chart(fig2, use_container_width=True)
     
     with tab3:
-        # Comparison charts implementation (similar pattern)
-        st.info("Comparison charts showing how different parameters affect sample size requirements.")
+        # Alpha comparison
+        alphas = [0.01, 0.05, 0.10]
+        alpha_sample_sizes = []
+        alpha_labels = ['α = 0.01', 'α = 0.05', 'α = 0.10']
+        
+        for alpha in alphas:
+            try:
+                if study_design == "Two independent study groups":
+                    if outcome_type == "Continuous (means)":
+                        # Get standard deviations with fallback
+                        std_dev_to_use = base_params.get('pooled_std', base_params.get('std_dev', 2.0))
+                        std_dev1 = base_params.get('std_dev1', std_dev_to_use)
+                        std_dev2 = base_params.get('std_dev2', std_dev_to_use)
+                        
+                        result = SampleSizeCalculator.calculate_continuous_two_groups(
+                            base_params['mean1'], base_params['mean2'],
+                            std_dev1, std_dev2,
+                            alpha, base_params['power'],
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        alpha_sample_sizes.append(result['total_unadjusted'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            base_params['p1'], base_params['p2'],
+                            alpha, base_params['power'],
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        alpha_sample_sizes.append(result['total_unadjusted'])
+                else:  # One group vs population
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_one_group(
+                            base_params['sample_mean'], base_params['population_mean'],
+                            base_params['std_dev'], alpha, base_params['power'],
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        alpha_sample_sizes.append(result['n_unadjusted'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_one_group(
+                            base_params['sample_prop'], base_params['population_prop'],
+                            alpha, base_params['power'],
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        alpha_sample_sizes.append(result['n_unadjusted'])
+            except:
+                alpha_sample_sizes.append(np.nan)
+        
+        fig3 = go.Figure()
+        fig3.add_trace(go.Bar(
+            x=alpha_labels,
+            y=alpha_sample_sizes,
+            name='Alpha Levels',
+            marker_color=['#e74c3c', '#f39c12', '#27ae60'],
+            text=[f'{int(size)}' for size in alpha_sample_sizes if not np.isnan(size)],
+            textposition='auto',
+        ))
+        
+        fig3.update_layout(
+            title="Alpha Level Impact on Sample Size",
+            xaxis_title="Alpha Level (Type I Error Rate)",
+            yaxis_title="Sample Size Required",
+            height=500,
+            showlegend=False,
+            font=dict(size=14)
+        )
+        
+        st.plotly_chart(fig3, use_container_width=True)
+        
+        # Additional comparison chart: Power levels
+        st.markdown("#### **Power Level Comparison**")
+        
+        power_levels = [0.70, 0.80, 0.90, 0.95]
+        power_sample_sizes_comp = []
+        power_labels = ['70%', '80%', '90%', '95%']
+        
+        for power in power_levels:
+            try:
+                if study_design == "Two independent study groups":
+                    if outcome_type == "Continuous (means)":
+                        # Get standard deviations with fallback
+                        std_dev_to_use = base_params.get('pooled_std', base_params.get('std_dev', 2.0))
+                        std_dev1 = base_params.get('std_dev1', std_dev_to_use)
+                        std_dev2 = base_params.get('std_dev2', std_dev_to_use)
+                        
+                        result = SampleSizeCalculator.calculate_continuous_two_groups(
+                            base_params['mean1'], base_params['mean2'],
+                            std_dev1, std_dev2,
+                            base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes_comp.append(result['total_unadjusted'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            base_params['p1'], base_params['p2'],
+                            base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes_comp.append(result['total_unadjusted'])
+                else:  # One group vs population
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_one_group(
+                            base_params['sample_mean'], base_params['population_mean'],
+                            base_params['std_dev'], base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes_comp.append(result['n_unadjusted'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_one_group(
+                            base_params['sample_prop'], base_params['population_prop'],
+                            base_params['alpha'], power,
+                            dropout_rate=0.0  # Use unadjusted for analysis
+                        )
+                        power_sample_sizes_comp.append(result['n_unadjusted'])
+            except:
+                power_sample_sizes_comp.append(np.nan)
+        
+        fig4 = go.Figure()
+        fig4.add_trace(go.Bar(
+            x=power_labels,
+            y=power_sample_sizes_comp,
+            name='Power Levels',
+            marker_color=['#3498db', '#2ecc71', '#f39c12', '#e74c3c'],
+            text=[f'{int(size)}' for size in power_sample_sizes_comp if not np.isnan(size)],
+            textposition='auto',
+        ))
+        
+        fig4.update_layout(
+            title="Statistical Power Impact on Sample Size",
+            xaxis_title="Statistical Power Level",
+            yaxis_title="Sample Size Required",
+            height=500,
+            showlegend=False,
+            font=dict(size=14)
+        )
+        
+        st.plotly_chart(fig4, use_container_width=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -776,11 +1000,294 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
                         st.markdown(f"**Adjusted for {dropout_rate*100:.0f}% Dropout:** **Total = {adjusted_total}**")
                         
             else:
-                # Post-hoc formulas (implementation continues...)
                 st.markdown("#### **Two-Sample T-Test Post-Hoc Power Formula:**")
                 st.latex(r'''Power = 1 - T_{df,\delta}(t_{1-\alpha/2})''')
+                st.markdown("**where:**")
+                st.latex(r'''\delta = \frac{|\bar{x}_1 - \bar{x}_2|}{s_p\sqrt{1/n_1 + 1/n_2}}''')
+                st.latex(r'''s_p = \sqrt{\frac{(n_1-1)s_1^2 + (n_2-1)s_2^2}{n_1 + n_2 - 2}}''')
+                st.latex(r'''df = n_1 + n_2 - 2''')
+                
+                # Show numerical substitution for post-hoc power
+                if all(key in params for key in ['n1', 'n2', 'mean1', 'mean2', 'std_dev']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    n1 = params['n1']
+                    n2 = params['n2']
+                    mean1 = params['mean1']
+                    mean2 = params['mean2']
+                    std_dev = params['std_dev']
+                    alpha = params['alpha']
+                    
+                    df = n1 + n2 - 2
+                    se_diff = std_dev * math.sqrt(1/n1 + 1/n2)
+                    delta = abs(mean1 - mean2) / se_diff
+                    t_alpha = stats.t.ppf(1 - alpha/2, df)
+                    power = 1 - stats.nct.cdf(t_alpha, df, delta)
+                    
+                    st.markdown(f"""
+                    **Given Parameters:**
+                    - n₁ = {n1}, n₂ = {n2}
+                    - x̄₁ = {mean1:.1f}, x̄₂ = {mean2:.1f}
+                    - sp = {std_dev:.1f} (pooled standard deviation)
+                    - α = {alpha:.2f}
+                    """)
+                    
+                    st.latex(f'''\\delta = \\frac{{|{mean1:.1f} - {mean2:.1f}|}}{{{std_dev:.1f} \\times \\sqrt{{1/{n1} + 1/{n2}}}}} = \\frac{{{abs(mean1-mean2):.1f}}}{{{se_diff:.3f}}} = {delta:.3f}''')
+                    
+                    st.latex(f'''Power = 1 - T_{{{df},{delta:.3f}}}({t_alpha:.3f}) = {power:.3f} = {power*100:.1f}\\%''')
+                
+        else:  # Dichotomous two groups
+            if not is_posthoc:
+                st.markdown("#### **Two-Proportion Z-Test Sample Size Formula:**")
+                st.latex(r'''n_1 = \frac{[z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(1 + \frac{1}{k})} + z_{1-\beta}\sqrt{p_1q_1 + \frac{p_2q_2}{k}}]^2}{(p_1 - p_2)^2}''')
+                
+                # Show numeric substitution for two proportions
+                if all(key in params for key in ['p1', 'p2', 'alpha', 'power']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    p1 = params['p1']
+                    p2 = params['p2']
+                    q1 = 1 - p1
+                    q2 = 1 - p2
+                    alpha = params['alpha']
+                    power = params['power']
+                    z_alpha = params.get('z_alpha', 1.96)
+                    z_beta = params.get('z_beta', 0.84)
+                    allocation_ratio = params.get('allocation_ratio', 1.0)
+                    p_pooled = params.get('p_pooled', (p1 + allocation_ratio * p2) / (1 + allocation_ratio))
+                    q_pooled = 1 - p_pooled
+                    dropout_rate = params.get('dropout_rate', 0.0)
+                    
+                    st.markdown(f"""
+                    **Given Parameters:**
+                    - p₁ = {p1:.2f}, q₁ = {q1:.2f} (group 1 proportions)
+                    - p₂ = {p2:.2f}, q₂ = {q2:.2f} (group 2 proportions)
+                    - p̄ = {p_pooled:.3f}, q̄ = {q_pooled:.3f} (pooled proportions)
+                    - α = {alpha:.2f}, z₁₋α/₂ = {z_alpha:.2f}
+                    - β = {1-power:.2f}, z₁₋β = {z_beta:.2f}
+                    - k = {allocation_ratio:.1f} (allocation ratio)
+                    """)
+                    
+                    var_null = p_pooled * q_pooled * (1 + 1/allocation_ratio)
+                    var_alt = p1 * q1 + p2 * q2 / allocation_ratio
+                    numerator = (z_alpha * math.sqrt(var_null) + z_beta * math.sqrt(var_alt))**2
+                    denominator = (p1 - p2)**2
+                    n1_result = math.ceil(numerator / denominator)
+                    
+                    st.latex(f'''n_1 = \\frac{{[{z_alpha:.2f}\\sqrt{{{p_pooled:.3f} \\times {q_pooled:.3f} \\times (1 + 1/{allocation_ratio:.1f})}} + {z_beta:.2f}\\sqrt{{{p1:.2f} \\times {q1:.2f} + {p2:.2f} \\times {q2:.2f}/{allocation_ratio:.1f}}}]^2}}{{({p1:.2f} - {p2:.2f})^2}}''')
+                    
+                    st.latex(f'''n_1 = \\frac{{[{z_alpha * math.sqrt(var_null):.3f} + {z_beta * math.sqrt(var_alt):.3f}]^2}}{{{denominator:.4f}}} = {n1_result}''')
+                    
+                    base_total = math.ceil(n1_result * (1 + allocation_ratio))
+                    st.markdown(f"**Base Sample Size:** n₁ = {n1_result}, n₂ = {math.ceil(n1_result * allocation_ratio)}, **Total = {base_total}**")
+                    
+                    if dropout_rate > 0:
+                        adjusted_total = math.ceil(base_total / (1 - dropout_rate))
+                        st.markdown(f"**Adjusted for {dropout_rate*100:.0f}% Dropout:** **Total = {adjusted_total}**")
+            else:
+                st.markdown("#### **Two-Proportion Post-Hoc Power Formula:**")
+                st.latex(r'''Power = \Phi\left(\frac{|\hat{p}_1 - \hat{p}_2| - z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(\frac{1}{n_1} + \frac{1}{n_2})}}{\sqrt{\frac{\hat{p}_1(1-\hat{p}_1)}{n_1} + \frac{\hat{p}_2(1-\hat{p}_2)}{n_2}}}\right)''')
+                
+                st.markdown("**where:**")
+                st.latex(r'''\bar{p} = \frac{n_1\hat{p}_1 + n_2\hat{p}_2}{n_1 + n_2}''')
+                st.latex(r'''\bar{q} = 1 - \bar{p}''')
+                
+                # Show parameter substitution
+                if all(key in params for key in ['n1', 'n2', 'p1', 'p2', 'alpha']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    n1 = params['n1']
+                    n2 = params['n2'] 
+                    p1 = params['p1']
+                    p2 = params['p2']
+                    q1 = 1 - p1
+                    q2 = 1 - p2
+                    alpha = params['alpha']
+                    delta = abs(p2 - p1)
+                    z_alpha = 1.96 if alpha == 0.05 else stats.norm.ppf(1 - alpha/2)
+                    
+                    # Calculate pooled proportion from observed data
+                    p_pooled = (n1 * p1 + n2 * p2) / (n1 + n2)
+                    q_pooled = 1 - p_pooled
+                    
+                    # Calculate components step by step
+                    numerator = delta
+                    denominator = math.sqrt(p1*q1/n1 + p2*q2/n2)
+                    first_term = numerator / denominator
+                    
+                    pooled_se = math.sqrt(p_pooled * q_pooled * (1/n1 + 1/n2))
+                    second_term = z_alpha * pooled_se / denominator
+                    
+                    final_z = first_term - second_term
+                    power = stats.norm.cdf(final_z)
+                    
+                    st.markdown(f"""
+                    **Given Parameters:**
+                    - n₁ = {n1}, n₂ = {n2}
+                    - p̂₁ = {p1:.2f}, p̂₂ = {p2:.2f}
+                    - p̄ = {p_pooled:.3f}, q̄ = {q_pooled:.3f}
+                    - α = {alpha:.2f}, z₁₋α/₂ = {z_alpha:.2f}
+                    """)
+                    
+                    st.latex(f'''Power = \\Phi\\left(\\frac{{|{p1:.2f} - {p2:.2f}| - {z_alpha:.2f} \\times \\sqrt{{{p_pooled:.3f} \\times {q_pooled:.3f} \\times (\\frac{{1}}{{{n1}}} + \\frac{{1}}{{{n2}}})}}}}{{\\sqrt{{\\frac{{{p1:.2f} \\times {q1:.2f}}}{{{n1}}} + \\frac{{{p2:.2f} \\times {q2:.2f}}}{{{n2}}}}}}}\\right)''')
+                    
+                    st.latex(f'''Power = \\Phi({final_z:.3f}) = {power:.3f} = {power*100:.1f}\\%''')
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    else:  # One group vs population
+        if outcome_type == "Continuous (means)":
+            if not is_posthoc:
+                st.markdown("#### **One-Sample T-Test Sample Size Formula:**")
+                st.latex(r'''N = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot \sigma^2}{(\mu_{sample} - \mu_{population})^2}''')
+                
+                # Show numeric substitution for one-sample continuous
+                if all(key in params for key in ['sample_mean', 'population_mean', 'std_dev', 'alpha', 'power']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    sample_mean = params['sample_mean']
+                    pop_mean = params['population_mean']
+                    std_dev = params['std_dev']
+                    alpha = params['alpha']
+                    power = params['power']
+                    z_alpha = params.get('z_alpha', 1.96)
+                    z_beta = params.get('z_beta', 0.84)
+                    dropout_rate = params.get('dropout_rate', 0.0)
+                    
+                    numerator = (z_alpha + z_beta)**2 * std_dev**2
+                    denominator = (sample_mean - pop_mean)**2
+                    n_result = math.ceil(numerator / denominator)
+                    
+                    st.markdown(f"""
+                    **Given Parameters:**
+                    - μsample = {sample_mean:.1f} (expected sample mean)
+                    - μpopulation = {pop_mean:.1f} (population mean)
+                    - σ = {std_dev:.1f} (standard deviation)
+                    - α = {alpha:.2f}, z₁₋α/₂ = {z_alpha:.2f}
+                    - β = {1-power:.2f}, z₁₋β = {z_beta:.2f}
+                    """)
+                    
+                    st.latex(f'''N = \\frac{{({z_alpha:.2f} + {z_beta:.2f})^2 \\times {std_dev:.1f}^2}}{{({sample_mean:.1f} - {pop_mean:.1f})^2}}''')
+                    
+                    st.latex(f'''N = \\frac{{{numerator:.2f}}}{{{denominator:.2f}}} = {n_result}''')
+                    
+                    if dropout_rate > 0:
+                        adjusted_n = math.ceil(n_result / (1 - dropout_rate))
+                        st.markdown(f"**Base Sample Size:** N = {n_result}")
+                        st.markdown(f"**Adjusted for {dropout_rate*100:.0f}% Dropout:** **N = {adjusted_n}**")
+                    
+            else:
+                st.markdown("#### **One-Sample T-Test Post-Hoc Power Formula:**")
+                st.latex(r'''Power = 1 - T_{df,\delta}(t_{1-\alpha/2})''')
+                st.markdown("**where:**")
+                st.latex(r'''\delta = \frac{|\bar{x} - \mu_0|}{s/\sqrt{n}}''')
+                st.latex(r'''df = n - 1''')
+                
+                # Show parameter substitution for post-hoc one-sample continuous
+                if all(key in params for key in ['n', 'sample_mean', 'population_mean', 'std_dev', 'alpha']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    n = params['n']
+                    sample_mean = params['sample_mean']
+                    pop_mean = params['population_mean']
+                    std_dev = params['std_dev']
+                    alpha = params['alpha']
+                    
+                    df = n - 1
+                    se = std_dev / math.sqrt(n)
+                    delta = abs(sample_mean - pop_mean) / se
+                    t_alpha = stats.t.ppf(1 - alpha/2, df)
+                    power = 1 - stats.nct.cdf(t_alpha, df, delta)
+                    
+                    st.markdown(f"""
+                    **Given Parameters:**
+                    - n = {n} (sample size)
+                    - x̄ = {sample_mean:.1f} (observed sample mean)
+                    - μ₀ = {pop_mean:.1f} (population mean)
+                    - s = {std_dev:.1f} (standard deviation)
+                    - α = {alpha:.2f}
+                    """)
+                    
+                    st.latex(f'''\\delta = \\frac{{|{sample_mean:.1f} - {pop_mean:.1f}|}}{{{std_dev:.1f}/\\sqrt{{{n}}}}} = \\frac{{{abs(sample_mean - pop_mean):.1f}}}{{{se:.3f}}} = {delta:.3f}''')
+                    
+                    st.latex(f'''Power = 1 - T_{{{df},{delta:.3f}}}({t_alpha:.3f}) = {power:.3f} = {power*100:.1f}\\%''')
+                
+        else:  # Dichotomous one group  
+            if not is_posthoc:
+                st.markdown("#### **One-Sample Proportion Test Sample Size Formula:**")
+                st.latex(r'''N = \frac{[z_{1-\alpha/2}\sqrt{p_0q_0} + z_{1-\beta}\sqrt{p_1q_1}]^2}{(p_1 - p_0)^2}''')
+                
+                # Show numeric substitution for one-sample proportion
+                if all(key in params for key in ['sample_prop', 'population_prop', 'alpha', 'power']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    p0 = params['population_prop']
+                    p1 = params['sample_prop'] 
+                    q0 = 1 - p0
+                    q1 = 1 - p1
+                    alpha = params['alpha']
+                    power = params['power']
+                    z_alpha = params.get('z_alpha', 1.96)
+                    z_beta = params.get('z_beta', 0.84)
+                    dropout_rate = params.get('dropout_rate', 0.0)
+                    
+                    numerator_part1 = z_alpha * math.sqrt(p0 * q0)
+                    numerator_part2 = z_beta * math.sqrt(p1 * q1)
+                    numerator_total = numerator_part1 + numerator_part2
+                    denominator = (p1 - p0)**2
+                    n_result = math.ceil((numerator_total**2) / denominator)
+                    
+                    st.markdown(f"""
+                    **Given Parameters:**
+                    - p₀ = {p0:.2f} (population proportion)
+                    - p₁ = {p1:.2f} (study proportion)  
+                    - q₀ = 1 - p₀ = {q0:.2f}
+                    - q₁ = 1 - p₁ = {q1:.2f}
+                    - α = {alpha:.2f}, z₁₋α/₂ = {z_alpha:.2f}
+                    - β = {1-power:.2f}, z₁₋β = {z_beta:.2f}
+                    """)
+                    
+                    st.latex(f'''N = \\frac{{[{z_alpha:.2f} \\times \\sqrt{{{p0:.2f} \\times {q0:.2f}}} + {z_beta:.2f} \\times \\sqrt{{{p1:.2f} \\times {q1:.2f}}}]^2}}{{({p1:.2f} - {p0:.2f})^2}}''')
+                    
+                    st.latex(f'''N = \\frac{{[{numerator_part1:.3f} + {numerator_part2:.3f}]^2}}{{{denominator:.4f}}} = {n_result}''')
+                    
+                    if dropout_rate > 0:
+                        adjusted_n = math.ceil(n_result / (1 - dropout_rate))
+                        st.markdown(f"**Base Sample Size:** N = {n_result}")
+                        st.markdown(f"**Adjusted for {dropout_rate*100:.0f}% Dropout:** **N = {adjusted_n}**")
+                    
+            else:
+                st.markdown("#### **One-Sample Proportion Post-Hoc Power Formula:**")
+                st.latex(r'''Power = \Phi\left(\frac{|\hat{p} - p_0| - z_{1-\alpha/2}\sqrt{p_0q_0/n}}{\sqrt{\hat{p}(1-\hat{p})/n}}\right)''')
+                
+                # Show parameter substitution for post-hoc one proportion
+                if all(key in params for key in ['n', 'sample_prop', 'population_prop', 'alpha']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    n = params['n']
+                    p_hat = params['sample_prop']
+                    p0 = params['population_prop']
+                    q0 = 1 - p0
+                    q_hat = 1 - p_hat
+                    alpha = params['alpha']
+                    z_alpha = 1.96 if alpha == 0.05 else stats.norm.ppf(1 - alpha/2)
+                    
+                    delta = abs(p_hat - p0)
+                    se_null = math.sqrt(p0 * q0 / n)
+                    se_alt = math.sqrt(p_hat * q_hat / n)
+                    
+                    z_score = (delta - z_alpha * se_null) / se_alt
+                    power = stats.norm.cdf(z_score)
+                    
+                    st.markdown(f"""
+                    **Given Parameters:**
+                    - n = {n} (sample size)
+                    - p̂ = {p_hat:.2f} (observed proportion)
+                    - p₀ = {p0:.2f} (population proportion)
+                    - α = {alpha:.2f}, z₁₋α/₂ = {z_alpha:.2f}
+                    """)
+                    
+                    st.latex(f'''Power = \\Phi\\left(\\frac{{|{p_hat:.2f} - {p0:.2f}| - {z_alpha:.2f}\\sqrt{{{p0:.2f} \\times {q0:.2f}/{n}}}}}{{\\sqrt{{{p_hat:.2f} \\times {q_hat:.2f}/{n}}}}}\\right)''')
+                    
+                    st.latex(f'''Power = \\Phi({z_score:.3f}) = {power:.3f} = {power*100:.1f}\\%''')
 
 def display_professional_results_tables(results, study_design, outcome_type, params, is_posthoc=False):
     """Display results using proper Streamlit tables"""
