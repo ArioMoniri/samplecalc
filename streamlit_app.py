@@ -416,51 +416,51 @@ class PostHocPowerAnalyzer:
         }
 
 def create_synchronized_input(label, min_val, max_val, default_val, step=0.01, help_text="", key_suffix="", format_str=None):
-    """Create synchronized slider and number input"""
+    """Create synchronized slider and number input that update each other"""
     st.markdown(f"**{label}**", help=help_text)
+    
+    # Create unique session state key
+    state_key = f"sync_val_{key_suffix}_{hash(label)}"
+    slider_key = f"slider_{key_suffix}_{hash(label)}"
+    number_key = f"number_{key_suffix}_{hash(label)}"
+    
+    # Initialize session state
+    if state_key not in st.session_state:
+        st.session_state[state_key] = float(default_val)
+    
+    current_val = st.session_state[state_key]
+    
     col1, col2 = st.columns([2, 1])
     
-    # Use a single shared key for synchronization
-    shared_key = f"sync_{key_suffix}"
-    
-    # Initialize with default value if not exists
-    if shared_key not in st.session_state:
-        st.session_state[shared_key] = float(default_val)
-    
-    current_value = st.session_state[shared_key]
-    
     with col1:
+        # Slider always reflects current session state value
         slider_val = st.slider(
             "",
             min_value=float(min_val),
             max_value=float(max_val), 
-            value=current_value,
+            value=current_val,
             step=float(step),
-            key=f"slider_{key_suffix}",
-            label_visibility="collapsed"
+            key=slider_key,
+            label_visibility="collapsed",
+            on_change=lambda: st.session_state.update({state_key: st.session_state[slider_key]})
         )
     
     with col2:
+        # Number input always reflects current session state value  
         number_val = st.number_input(
             "",
             min_value=float(min_val),
             max_value=float(max_val),
-            value=current_value,
+            value=current_val,
             step=float(step),
-            key=f"number_{key_suffix}",
+            key=number_key,
             format=format_str,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            on_change=lambda: st.session_state.update({state_key: st.session_state[number_key]})
         )
     
-    # Update shared value if either widget changed
-    if slider_val != current_value:
-        st.session_state[shared_key] = slider_val
-        return slider_val
-    elif number_val != current_value:
-        st.session_state[shared_key] = number_val
-        return number_val
-    
-    return current_value
+    # Return the synchronized value
+    return st.session_state[state_key]
 
 def display_study_type_info(study_design, outcome_type):
     """Display information about selected study types"""
@@ -498,6 +498,111 @@ def display_study_type_info(study_design, outcome_type):
         <br><em>Examples: blood pressure reduction (mmHg), weight loss (kg), pain score reduction</em>
         </div>
         """, unsafe_allow_html=True)
+
+def create_parameter_sensitivity_plot(study_design, outcome_type, base_params):
+    """Create interactive parameter sensitivity analysis plots"""
+    import plotly.graph_objects as go
+    import numpy as np
+    
+    if study_design == "Two independent study groups":
+        if outcome_type == "Dichotomous (yes/no)":
+            # Power curve for different effect sizes
+            p1_base = base_params.get('p1', 0.2)
+            p2_range = np.linspace(0.01, 0.8, 50)
+            sample_sizes = []
+            
+            for p2 in p2_range:
+                if abs(p1_base - p2) > 0.01:  # Avoid division by zero
+                    try:
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            p1_base, p2, base_params.get('alpha', 0.05), 
+                            base_params.get('power', 0.8), 1.0, True, True, 0.0
+                        )
+                        sample_sizes.append(result['total'])
+                    except:
+                        sample_sizes.append(None)
+                else:
+                    sample_sizes.append(None)
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=p2_range,
+                y=sample_sizes,
+                mode='lines',
+                name='Total Sample Size',
+                line=dict(width=3, color='#2E86AB')
+            ))
+            
+            fig.update_layout(
+                title="Sample Size vs. Group 2 Proportion",
+                xaxis_title="Group 2 Proportion",
+                yaxis_title="Total Sample Size",
+                height=400,
+                showlegend=False
+            )
+            
+            return fig
+            
+    return None
+
+def display_formula_with_substitution(study_design, outcome_type, params, results):
+    """Display formula with actual parameter substitution like in the examples"""
+    
+    if study_design == "One study group vs. population" and outcome_type == "Dichotomous (yes/no)":
+        st.markdown("#### **Parameter Substitution:**")
+        
+        p0 = params.get('population_prop', 0.21)
+        p1 = params.get('sample_prop', 0.14) 
+        q0 = 1 - p0
+        q1 = 1 - p1
+        z_alpha = params.get('z_alpha', 1.96)
+        z_beta = params.get('z_beta', 0.84)
+        n_result = results.get('n', 243)
+        
+        st.markdown(f"""
+        **Given Parameters:**
+        - p₀ = {p0:.2f} (population proportion)
+        - p₁ = {p1:.2f} (study proportion)  
+        - q₀ = 1 - p₀ = {q0:.2f}
+        - q₁ = 1 - p₁ = {q1:.2f}
+        - z₁₋α/₂ = {z_alpha:.2f}
+        - z₁₋β = {z_beta:.2f}
+        """)
+        
+        # Show the calculation step by step
+        numerator_part1 = z_alpha * np.sqrt(p0 * q0)
+        numerator_part2 = z_beta * np.sqrt(p1 * q1)
+        numerator_total = numerator_part1 + numerator_part2
+        denominator = (p1 - p0)**2
+        
+        st.latex(f'''N = \\frac{{[{z_alpha:.2f} \\times \\sqrt{{{p0:.2f} \\times {q0:.2f}}} + {z_beta:.2f} \\times \\sqrt{{{p1:.2f} \\times {q1:.2f}}}]^2}}{{({p1:.2f} - {p0:.2f})^2}}''')
+        
+        st.latex(f'''N = \\frac{{[{numerator_part1:.3f} + {numerator_part2:.3f}]^2}}{{{denominator:.4f}}}''')
+        
+        st.latex(f'''N = \\frac{{{numerator_total:.3f}^2}}{{{denominator:.4f}}} = {n_result}''')
+        
+    elif study_design == "Two independent study groups" and outcome_type == "Dichotomous (yes/no)":
+        # Add similar detailed substitution for two-group tests
+        st.markdown("#### **Parameter Substitution:**")
+        
+        p1 = params.get('p1', 0.14)
+        p2 = params.get('p2', 0.21)
+        z_alpha = params.get('z_alpha', 1.96)
+        z_beta = params.get('z_beta', 0.84)
+        n_total = results.get('total', 194)
+        
+        st.markdown(f"""
+        **Given Parameters:**
+        - p₁ = {p1:.2f} (group 1 proportion)
+        - p₂ = {p2:.2f} (group 2 proportion)
+        - z₁₋α/₂ = {z_alpha:.2f}
+        - z₁₋β = {z_beta:.2f}
+        - k = 1 (equal allocation)
+        """)
+        
+        st.latex(f'''n = \\frac{{[z_{{1-\\alpha/2}}\\sqrt{{\\bar{{p}}\\bar{{q}}(1 + 1/k)}} + z_{{1-\\beta}}\\sqrt{{p_1q_1 + p_2q_2/k}}]^2}}{{(p_1 - p_2)^2}}''')
+        
+        st.markdown(f"**Result:** n₁ = {results.get('n1', 97)}, n₂ = {results.get('n2', 97)}, **Total = {n_total}**")
 
 def display_latex_formula_detailed(study_design, outcome_type, params, is_posthoc=False):
     """Display detailed LaTeX formulas with comprehensive explanations"""
@@ -870,25 +975,48 @@ def main():
                                                             "Expected mean for group 2", "mean2", "%.1f")
                                                             
                     elif mean_type == "% Increase":
-                        baseline_mean = create_synchronized_input("Baseline mean", -1000.0, 1000.0, 10.0, 0.1,
-                                                                "Baseline mean for comparison", "baseline_mean", "%.1f")
-                        increase_percent = create_synchronized_input("% Increase", 1.0, 500.0, 20.0, 1.0,
-                                                                   "Percentage increase from baseline", "mean_increase", "%.0f")
-                        mean1 = baseline_mean
-                        mean2 = baseline_mean * (1 + increase_percent/100)
-                        st.write(f"Group 1: {mean1:.1f} ± SD, Group 2: {mean2:.1f} ± SD")
+                        # Direct percentage inputs for each group
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            mean1_pct = create_synchronized_input("Group 1 % change", -99.0, 500.0, 0.0, 1.0,
+                                                                "Percentage change for group 1", "mean1_pct", "%.0f")
+                        with col_b:
+                            mean2_pct = create_synchronized_input("Group 2 % change", -99.0, 500.0, 20.0, 1.0,
+                                                                "Percentage change for group 2", "mean2_pct", "%.0f")
+                        
+                        baseline_mean = create_synchronized_input("Baseline value", 0.1, 1000.0, 10.0, 0.1,
+                                                                "Baseline value for percentage calculations", "baseline_pct", "%.1f")
+                        mean1 = baseline_mean * (1 + mean1_pct/100)
+                        mean2 = baseline_mean * (1 + mean2_pct/100)
+                        st.write(f"Group 1: {mean1:.1f} ± SD₁, Group 2: {mean2:.1f} ± SD₂")
                         
                     elif mean_type == "% Decrease":
-                        baseline_mean = create_synchronized_input("Baseline mean", -1000.0, 1000.0, 12.0, 0.1,
-                                                                "Baseline mean for comparison", "baseline_mean_dec", "%.1f")
-                        decrease_percent = create_synchronized_input("% Decrease", 1.0, 99.0, 16.7, 1.0,
-                                                                   "Percentage decrease from baseline", "mean_decrease", "%.0f")
-                        mean2 = baseline_mean
-                        mean1 = baseline_mean * (1 - decrease_percent/100)
-                        st.write(f"Group 1: {mean1:.1f} ± SD, Group 2: {mean2:.1f} ± SD")
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            mean1_pct = create_synchronized_input("Group 1 % decrease", 1.0, 99.0, 16.7, 1.0,
+                                                                "Percentage decrease for group 1", "mean1_dec", "%.0f")
+                        with col_b:
+                            mean2_pct = create_synchronized_input("Group 2 % decrease", 1.0, 99.0, 0.0, 1.0,
+                                                                "Percentage decrease for group 2", "mean2_dec", "%.0f")
+                        
+                        baseline_mean = create_synchronized_input("Baseline value", 0.1, 1000.0, 12.0, 0.1,
+                                                                "Baseline value for percentage calculations", "baseline_dec", "%.1f")
+                        mean1 = baseline_mean * (1 - mean1_pct/100)
+                        mean2 = baseline_mean * (1 - mean2_pct/100)
+                        st.write(f"Group 1: {mean1:.1f} ± SD₁, Group 2: {mean2:.1f} ± SD₂")
                     
-                    std_dev = create_synchronized_input("Common standard deviation", 0.01, 100.0, 2.0, 0.1,
-                                                      "Common standard deviation for both groups", "std_dev", "%.1f")
+                    # Separate standard deviations for each group
+                    col_std1, col_std2 = st.columns(2)
+                    with col_std1:
+                        std_dev1 = create_synchronized_input("Group 1 standard deviation", 0.01, 100.0, 2.0, 0.1,
+                                                           "Standard deviation for group 1", "std_dev1", "%.1f")
+                    with col_std2:
+                        std_dev2 = create_synchronized_input("Group 2 standard deviation", 0.01, 100.0, 2.0, 0.1,
+                                                           "Standard deviation for group 2", "std_dev2", "%.1f")
+                    
+                    # Use pooled standard deviation for calculations
+                    std_dev = math.sqrt((std_dev1**2 + std_dev2**2) / 2)
+                    
                     allocation_ratio = create_synchronized_input("Allocation ratio (group 2 / group 1)", 0.1, 5.0, 1.0, 0.1,
                                                                "Ratio of group 2 size to group 1 size", "allocation", "%.1f")
                     
@@ -931,21 +1059,34 @@ def main():
                                                      "Expected proportion in group 2", "p2", "%.2f")
                                                      
                     elif ratio_type == "% Increase":
+                        # Direct percentage inputs for each group
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            p1_pct = create_synchronized_input("Group 1 % increase", 0.0, 500.0, 0.0, 1.0,
+                                                             "Percentage increase for group 1", "p1_inc", "%.0f")
+                        with col_b:
+                            p2_pct = create_synchronized_input("Group 2 % increase", 0.0, 500.0, 50.0, 1.0,
+                                                             "Percentage increase for group 2", "p2_inc", "%.0f")
+                        
                         baseline_prop = create_synchronized_input("Baseline proportion", 0.01, 0.99, 0.14, 0.01,
-                                                                "Baseline proportion for comparison", "baseline", "%.2f")
-                        increase_percent = create_synchronized_input("Percentage increase", 1.0, 500.0, 50.0, 1.0,
-                                                                   "Percentage increase from baseline", "increase", "%.0f")
-                        p1 = baseline_prop
-                        p2 = min(0.99, baseline_prop * (1 + increase_percent/100))
+                                                                "Baseline proportion for calculations", "baseline_prop_inc", "%.2f")
+                        p1 = min(0.99, baseline_prop * (1 + p1_pct/100))
+                        p2 = min(0.99, baseline_prop * (1 + p2_pct/100))
                         st.write(f"Group 1: {p1:.3f}, Group 2: {p2:.3f}")
                         
                     elif ratio_type == "% Decrease":
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            p1_pct = create_synchronized_input("Group 1 % decrease", 1.0, 99.0, 33.0, 1.0,
+                                                             "Percentage decrease for group 1", "p1_dec", "%.0f")
+                        with col_b:
+                            p2_pct = create_synchronized_input("Group 2 % decrease", 1.0, 99.0, 0.0, 1.0,
+                                                             "Percentage decrease for group 2", "p2_dec", "%.0f")
+                        
                         baseline_prop = create_synchronized_input("Baseline proportion", 0.01, 0.99, 0.21, 0.01,
-                                                                "Baseline proportion for comparison", "baseline_dec", "%.2f")
-                        decrease_percent = create_synchronized_input("Percentage decrease", 1.0, 99.0, 33.0, 1.0,
-                                                                   "Percentage decrease from baseline", "decrease", "%.0f")
-                        p2 = baseline_prop
-                        p1 = max(0.01, baseline_prop * (1 - decrease_percent/100))
+                                                                "Baseline proportion for calculations", "baseline_prop_dec", "%.2f")
+                        p1 = max(0.01, baseline_prop * (1 - p1_pct/100))
+                        p2 = max(0.01, baseline_prop * (1 - p2_pct/100))
                         st.write(f"Group 1: {p1:.3f}, Group 2: {p2:.3f}")
                     
                     allocation_ratio = create_synchronized_input("Allocation ratio (group 2 / group 1)", 0.1, 5.0, 1.0, 0.1,
@@ -996,17 +1137,17 @@ def main():
                     elif mean_type == "% Increase":
                         population_mean = create_synchronized_input("Population mean", -1000.0, 1000.0, 10.0, 0.1,
                                                                   "Known population mean", "pop_mean_inc", "%.1f")
-                        increase_percent = create_synchronized_input("Expected % increase", 1.0, 500.0, 20.0, 1.0,
-                                                                   "Expected percentage increase", "sample_increase", "%.0f")
-                        sample_mean = population_mean * (1 + increase_percent/100)
+                        sample_increase_pct = create_synchronized_input("Expected % increase", 1.0, 500.0, 20.0, 1.0,
+                                                                      "Expected percentage increase for study group", "sample_increase", "%.0f")
+                        sample_mean = population_mean * (1 + sample_increase_pct/100)
                         st.write(f"Population: {population_mean:.1f} ± SD, Expected Study: {sample_mean:.1f} ± SD")
                         
                     elif mean_type == "% Decrease":
                         population_mean = create_synchronized_input("Population mean", -1000.0, 1000.0, 12.0, 0.1,
                                                                   "Known population mean", "pop_mean_dec", "%.1f")
-                        decrease_percent = create_synchronized_input("Expected % decrease", 1.0, 99.0, 16.7, 1.0,
-                                                                   "Expected percentage decrease", "sample_decrease", "%.0f")
-                        sample_mean = population_mean * (1 - decrease_percent/100)
+                        sample_decrease_pct = create_synchronized_input("Expected % decrease", 1.0, 99.0, 16.7, 1.0,
+                                                                      "Expected percentage decrease for study group", "sample_decrease", "%.0f")
+                        sample_mean = population_mean * (1 - sample_decrease_pct/100)
                         st.write(f"Population: {population_mean:.1f} ± SD, Expected Study: {sample_mean:.1f} ± SD")
                     
                     std_dev = create_synchronized_input("Standard deviation", 0.01, 100.0, 2.0, 0.1,
@@ -1054,17 +1195,17 @@ def main():
                     elif ratio_type == "% Increase from Population":
                         population_prop = create_synchronized_input("Known population proportion", 0.01, 0.99, 0.21, 0.01,
                                                                   "Known population proportion", "pop_prop_inc", "%.2f")
-                        increase_percent = create_synchronized_input("Expected % increase", 1.0, 500.0, 50.0, 1.0,
-                                                                   "Expected percentage increase", "pop_increase", "%.0f")
-                        sample_prop = min(0.99, population_prop * (1 + increase_percent/100))
+                        sample_increase_pct = create_synchronized_input("Expected % increase", 1.0, 500.0, 50.0, 1.0,
+                                                                      "Expected percentage increase for study group", "sample_inc_one", "%.0f")
+                        sample_prop = min(0.99, population_prop * (1 + sample_increase_pct/100))
                         st.write(f"Population: {population_prop:.3f}, Expected Study: {sample_prop:.3f}")
                         
                     elif ratio_type == "% Decrease from Population":
                         population_prop = create_synchronized_input("Known population proportion", 0.01, 0.99, 0.21, 0.01,
                                                                   "Known population proportion", "pop_prop_dec", "%.2f")
-                        decrease_percent = create_synchronized_input("Expected % decrease", 1.0, 99.0, 33.0, 1.0,
-                                                                   "Expected percentage decrease", "pop_decrease", "%.0f")
-                        sample_prop = max(0.01, population_prop * (1 - decrease_percent/100))
+                        sample_decrease_pct = create_synchronized_input("Expected % decrease", 1.0, 99.0, 33.0, 1.0,
+                                                                      "Expected percentage decrease for study group", "sample_dec_one", "%.0f")
+                        sample_prop = max(0.01, population_prop * (1 - sample_decrease_pct/100))
                         st.write(f"Population: {population_prop:.3f}, Expected Study: {sample_prop:.3f}")
                     
                     if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
@@ -1101,13 +1242,123 @@ def main():
                     st.session_state.params,
                     is_posthoc=False
                 )
+                # Add parameter substitution
+                display_formula_with_substitution(
+                    st.session_state.study_design,
+                    st.session_state.outcome_type,
+                    st.session_state.params,
+                    st.session_state.results
+                )
             else:
                 st.info("Please calculate sample size first to view the formula.")
         
         with sub_tab3:
             if 'results' in st.session_state:
                 st.markdown("### 📊 **Parameter Sensitivity Analysis**")
-                st.info("Visualization showing how changes in parameters affect sample size requirements.")
+                
+                # Create sensitivity analysis plots
+                sensitivity_plot = create_parameter_sensitivity_plot(
+                    st.session_state.study_design,
+                    st.session_state.outcome_type,
+                    st.session_state.params
+                )
+                
+                if sensitivity_plot:
+                    st.plotly_chart(sensitivity_plot, use_container_width=True)
+                
+                # Power curves
+                st.markdown("#### **Power Analysis Curves**")
+                
+                if st.session_state.study_design == "Two independent study groups":
+                    if st.session_state.outcome_type == "Dichotomous (yes/no)":
+                        # Power vs sample size curve
+                        sample_sizes = np.arange(10, 500, 10)
+                        powers = []
+                        
+                        p1 = st.session_state.params.get('p1', 0.2)
+                        p2 = st.session_state.params.get('p2', 0.3)
+                        alpha = st.session_state.params.get('alpha', 0.05)
+                        
+                        for n_per_group in sample_sizes:
+                            try:
+                                power_result = PostHocPowerAnalyzer.calculate_power_two_proportions(
+                                    n_per_group, n_per_group, p1, p2, alpha, True
+                                )
+                                powers.append(power_result['power'] * 100)
+                            except:
+                                powers.append(0)
+                        
+                        fig_power = go.Figure()
+                        fig_power.add_trace(go.Scatter(
+                            x=sample_sizes * 2,  # Total sample size
+                            y=powers,
+                            mode='lines',
+                            name='Statistical Power',
+                            line=dict(width=3, color='#A23B72')
+                        ))
+                        
+                        # Add horizontal line at 80% power
+                        fig_power.add_hline(y=80, line_dash="dash", line_color="red", 
+                                           annotation_text="80% Power Threshold")
+                        
+                        # Mark current study design
+                        current_total = st.session_state.results.get('total', 100)
+                        current_power_result = PostHocPowerAnalyzer.calculate_power_two_proportions(
+                            current_total//2, current_total//2, p1, p2, alpha, True
+                        )
+                        current_power = current_power_result['power'] * 100
+                        
+                        fig_power.add_trace(go.Scatter(
+                            x=[current_total],
+                            y=[current_power],
+                            mode='markers',
+                            name='Your Study Design',
+                            marker=dict(size=12, color='red', symbol='star')
+                        ))
+                        
+                        fig_power.update_layout(
+                            title="Statistical Power vs. Total Sample Size",
+                            xaxis_title="Total Sample Size",
+                            yaxis_title="Statistical Power (%)",
+                            height=400,
+                            yaxis=dict(range=[0, 100])
+                        )
+                        
+                        st.plotly_chart(fig_power, use_container_width=True)
+                
+                # Effect size interpretation
+                st.markdown("#### **Effect Size Interpretation**")
+                effect_size = st.session_state.results.get('effect_size', 0)
+                
+                if st.session_state.outcome_type == "Continuous (means)":
+                    if effect_size < 0.2:
+                        st.info(f"**Small Effect Size** (Cohen's d = {effect_size:.3f}): The difference between groups is small.")
+                    elif effect_size < 0.5:
+                        st.success(f"**Medium Effect Size** (Cohen's d = {effect_size:.3f}): The difference between groups is moderate.")
+                    else:
+                        st.success(f"**Large Effect Size** (Cohen's d = {effect_size:.3f}): The difference between groups is large.")
+                else:
+                    st.info(f"**Proportion Difference** = {effect_size:.3f}: Absolute difference between group proportions.")
+                
+                # Sample size recommendations
+                st.markdown("#### **Sample Size Recommendations**")
+                current_n = st.session_state.results.get('total', st.session_state.results.get('n', 0))
+                
+                st.markdown(f"""
+                **Your calculated sample size:** {current_n}
+                
+                **Practical Considerations:**
+                - Add 10-20% for potential dropouts if not already included
+                - Consider feasibility of recruitment within your timeframe
+                - Budget constraints and resource availability
+                - Regulatory requirements for your study type
+                
+                **Alternative Power Levels:**
+                - For 70% power: ~{int(current_n * 0.7)} subjects
+                - For 90% power: ~{int(current_n * 1.3)} subjects
+                - For 95% power: ~{int(current_n * 1.6)} subjects
+                """)
+                
             else:
                 st.info("Please calculate sample size first to view the analysis.")
         
