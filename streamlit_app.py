@@ -1499,20 +1499,21 @@ def main():
                         std_dev2 = create_synchronized_input("Group 2 standard deviation", 0.01, 100.0, 2.0, 0.1,
                                                            "Standard deviation for group 2", "std_dev2", "%.1f")
                     
-                    # Use pooled standard deviation for calculations
-                    std_dev = math.sqrt((std_dev1**2 + std_dev2**2) / 2)
-                    
+                    # Use separate standard deviations (no pooling for display)
                     allocation_ratio = create_synchronized_input("Allocation ratio (group 2 / group 1)", 0.1, 5.0, 1.0, 0.1,
                                                                "Ratio of group 2 size to group 1 size", "allocation", "%.1f")
                     
                     if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True, key="calc_continuous_two"):
                         try:
+                            # Use pooled SD only for internal calculations
+                            std_dev_pooled = math.sqrt((std_dev1**2 + std_dev2**2) / 2)
+                            
                             results = SampleSizeCalculator.calculate_continuous_two_groups(
-                                mean1, mean2, std_dev, alpha, power, allocation_ratio, two_sided, dropout_rate
+                                mean1, mean2, std_dev_pooled, alpha, power, allocation_ratio, two_sided, dropout_rate
                             )
                             
                             params = {
-                                'mean1': mean1, 'mean2': mean2, 'std_dev': std_dev,
+                                'mean1': mean1, 'mean2': mean2, 'std_dev': std_dev_pooled,
                                 'std_dev1': std_dev1, 'std_dev2': std_dev2,
                                 'alpha': alpha, 'power': power, 'z_alpha': results['z_alpha'],
                                 'z_beta': results['z_beta'], 'allocation_ratio': allocation_ratio
