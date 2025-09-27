@@ -585,6 +585,24 @@ def display_study_type_info(study_design, outcome_type):
 def create_enhanced_visualizations(study_design, outcome_type, base_params, results):
     """Create enhanced parameter sensitivity analysis charts"""
     
+    # Add CSS styles for the container
+    st.markdown(
+        """
+        <style>
+        .visualization-container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding-top: 5px;      /* reduce top padding */
+            padding-bottom: 5px;   /* reduce bottom padding */
+            padding-left: 15px;    /* keep side padding */
+            padding-right: 15px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Your container with heading
     st.markdown(
         """
         <div class="visualization-container">
