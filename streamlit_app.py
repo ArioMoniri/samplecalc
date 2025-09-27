@@ -423,19 +423,19 @@ def create_synchronized_input(label, min_val, max_val, default_val, step=0.01, h
     slider_key = f"slider_{key_suffix}"
     number_key = f"number_{key_suffix}"
     
-    # Initialize session state if needed
+    # Initialize session state if needed with proper type conversion
     if slider_key not in st.session_state:
-        st.session_state[slider_key] = default_val
+        st.session_state[slider_key] = float(default_val)
     if number_key not in st.session_state:
-        st.session_state[number_key] = default_val
+        st.session_state[number_key] = float(default_val)
     
     with col1:
         slider_val = st.slider(
             "",
-            min_value=min_val,
-            max_value=max_val, 
-            value=st.session_state[slider_key],
-            step=step,
+            min_value=float(min_val),
+            max_value=float(max_val), 
+            value=float(st.session_state[slider_key]),
+            step=float(step),
             key=slider_key,
             label_visibility="collapsed"
         )
@@ -443,20 +443,23 @@ def create_synchronized_input(label, min_val, max_val, default_val, step=0.01, h
     with col2:
         number_val = st.number_input(
             "",
-            min_value=min_val,
-            max_value=max_val,
-            value=st.session_state[number_key],
-            step=step,
+            min_value=float(min_val),
+            max_value=float(max_val),
+            value=float(st.session_state[number_key]),
+            step=float(step),
             key=number_key,
             format=format_str,
             label_visibility="collapsed"
         )
     
-    # Synchronize values
-    if slider_val != st.session_state[number_key]:
+    # Synchronize values - avoid infinite loops by checking if values actually changed
+    current_slider = st.session_state.get(slider_key, default_val)
+    current_number = st.session_state.get(number_key, default_val)
+    
+    if abs(slider_val - current_number) > step/10:  # Use small threshold to avoid floating point issues
         st.session_state[number_key] = slider_val
         st.rerun()
-    elif number_val != st.session_state[slider_key]:
+    elif abs(number_val - current_slider) > step/10:
         st.session_state[slider_key] = number_val
         st.rerun()
     
