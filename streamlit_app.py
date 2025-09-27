@@ -584,6 +584,19 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
                 marker=dict(size=8)
             ))
             
+            # Add marker for current study
+            current_effect_size = results.get('effect_size', 0)
+            current_sample_size = results.get('total', 0)
+            
+            fig1.add_trace(go.Scatter(
+                x=[current_effect_size],
+                y=[current_sample_size],
+                mode='markers',
+                name='Your Study Design',
+                marker=dict(size=15, color='red', symbol='star', 
+                           line=dict(width=2, color='white'))
+            ))
+            
             fig1.update_layout(
                 title="Effect Size vs Required Sample Size",
                 xaxis_title="Effect Size (Cohen's d)",
@@ -619,6 +632,19 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
                 marker=dict(size=8)
             ))
             
+            # Add marker for current study
+            current_effect_size = results.get('effect_size', 0)
+            current_sample_size = results.get('total', 0)
+            
+            fig1.add_trace(go.Scatter(
+                x=[current_effect_size],
+                y=[current_sample_size],
+                mode='markers',
+                name='Your Study Design',
+                marker=dict(size=15, color='red', symbol='star',
+                           line=dict(width=2, color='white'))
+            ))
+            
             fig1.update_layout(
                 title="Effect Size vs Required Sample Size",
                 xaxis_title="Effect Size (Absolute Difference in Proportions)",
@@ -650,6 +676,19 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
                 name='Effect Size vs Sample Size',
                 line=dict(color='#2E86AB', width=4),
                 marker=dict(size=8)
+            ))
+            
+            # Add marker for current study
+            current_effect_size = results.get('effect_size', 0)
+            current_sample_size = results.get('n', 0)
+            
+            fig1.add_trace(go.Scatter(
+                x=[current_effect_size],
+                y=[current_sample_size],
+                mode='markers',
+                name='Your Study Design',
+                marker=dict(size=15, color='red', symbol='star',
+                           line=dict(width=2, color='white'))
             ))
             
             fig1.update_layout(
@@ -685,6 +724,19 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
                 name='Effect Size vs Sample Size',
                 line=dict(color='#2E86AB', width=4),
                 marker=dict(size=8)
+            ))
+            
+            # Add marker for current study
+            current_effect_size = results.get('effect_size', 0)
+            current_sample_size = results.get('n', 0)
+            
+            fig1.add_trace(go.Scatter(
+                x=[current_effect_size],
+                y=[current_sample_size],
+                mode='markers',
+                name='Your Study Design',
+                marker=dict(size=15, color='red', symbol='star',
+                           line=dict(width=2, color='white'))
             ))
             
             fig1.update_layout(
@@ -743,12 +795,26 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
             marker=dict(size=8)
         ))
         
-        # Add horizontal line at current study power
+        # Add marker for current study
         current_power = base_params.get('power', 0.8)
         current_sample = results.get('total', results.get('n', 0))
         
+        fig2.add_trace(go.Scatter(
+            x=[current_power],
+            y=[current_sample],
+            mode='markers',
+            name='Your Study Design',
+            marker=dict(size=15, color='red', symbol='star',
+                       line=dict(width=2, color='white'))
+        ))
+        
+        # Add horizontal line at current study sample size
         fig2.add_hline(y=current_sample, line_dash="dash", line_color="red", 
-                       annotation_text=f"Your Study (Power={current_power*100:.0f}%)")
+                       annotation_text=f"Your Study Sample Size = {current_sample}")
+        
+        # Add vertical line at current study power
+        fig2.add_vline(x=current_power, line_dash="dash", line_color="blue", 
+                       annotation_text=f"Your Study Power = {current_power*100:.0f}%")
         
         fig2.update_layout(
             title="Statistical Power vs Required Sample Size",
@@ -954,17 +1020,6 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
             if not is_posthoc:
                 st.markdown("#### **Two-Sample T-Test Sample Size Formula:**")
                 st.latex(r'''n = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot 2\sigma^2}{(\mu_1 - \mu_2)^2}''')
-                
-                st.markdown("""
-                **Where:**
-                - **n** = sample size per group
-                - **z₁₋α/₂** = critical value for two-sided test at α significance level
-                - **z₁₋β** = critical value corresponding to desired power (1-β)
-                - **σ** = common standard deviation
-                - **μ₁, μ₂** = means of the two groups
-                - **α** = Type I error rate (typically 0.05)
-                - **β** = Type II error rate (typically 0.20 for 80% power)
-                """)
             else:
                 st.markdown("#### **Two-Sample T-Test Post-Hoc Power Formula:**")
                 st.latex(r'''Power = 1 - T_{df,\delta}(t_{1-\alpha/2})''')
@@ -974,33 +1029,68 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
             if not is_posthoc:
                 st.markdown("#### **Two-Proportion Z-Test Sample Size Formula:**")
                 st.latex(r'''n = \frac{[z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(1 + \frac{1}{k})} + z_{1-\beta}\sqrt{p_1q_1 + \frac{p_2q_2}{k}}]^2}{(p_1 - p_2)^2}''')
-                
-                st.markdown("""
-                **Where:**
-                - **n** = sample size for group 1
-                - **p₁, p₂** = proportions in groups 1 and 2
-                - **q₁ = 1-p₁, q₂ = 1-p₂** = complement proportions
-                - **p̄** = pooled proportion = (p₁ + kp₂)/(1 + k)
-                - **q̄ = 1-p̄** = pooled complement proportion
-                - **k** = allocation ratio (n₂/n₁)
-                """)
             else:
                 st.markdown("#### **Two-Proportion Post-Hoc Power Formula:**")
-                st.latex(r'''Power = \Phi\left(\frac{|p_1 - p_2| - z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(\frac{1}{n_1} + \frac{1}{n_2})}}{\sqrt{\frac{p_1q_1}{n_1} + \frac{p_2q_2}{n_2}}}\right)''')
+                st.latex(r'''Power = \Phi\left\{\frac{\Delta}{\sqrt{\frac{p_1q_1}{n_1} + \frac{p_2q_2}{n_2}}} - z_{1-\alpha/2} \times \frac{\sqrt{\bar{p}\bar{q}(\frac{1}{n_1} + \frac{1}{n_2})}}{\sqrt{\frac{p_1q_1}{n_1} + \frac{p_2q_2}{n_2}}}\right\}''')
+                
+                # Add parameter definitions
+                st.markdown("""
+                **Parameter Definitions:**
+                - **p₁, p₂** = proportion (incidence) of groups #1 and #2
+                - **Δ = |p₂-p₁|** = absolute difference between two proportions  
+                - **n₁** = sample size for group #1
+                - **n₂** = sample size for group #2
+                - **α** = probability of type I error (usually 0.05)
+                - **z** = critical Z value for a given α or β
+                - **K** = ratio of sample size for group #2 to group #1
+                - **Φ()** = function converting a critical Z value to power
+                """)
+                
+                # Show numerical substitution if parameters available
+                if all(key in params for key in ['n1', 'n2', 'p1', 'p2', 'alpha']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    n1 = params['n1']
+                    n2 = params['n2'] 
+                    p1 = params['p1']
+                    p2 = params['p2']
+                    q1 = 1 - p1
+                    q2 = 1 - p2
+                    alpha = params['alpha']
+                    delta = abs(p2 - p1)
+                    z_alpha = 1.96 if alpha == 0.05 else stats.norm.ppf(1 - alpha/2)
+                    
+                    # Calculate pooled proportion
+                    p_pooled = (n1 * p1 + n2 * p2) / (n1 + n2)
+                    q_pooled = 1 - p_pooled
+                    
+                    st.markdown(f"""
+                    **q₁ = 1 - p₁ = {q1:.2f}**  
+                    **q₂ = 1 - p₂ = {q2:.2f}**  
+                    **p̄ = (p₁ + kp₂)/(1 + k) = {p_pooled:.3f}**  
+                    **q̄ = 1 - p̄ = {q_pooled:.3f}**
+                    """)
+                    
+                    # Show step-by-step calculation
+                    numerator = delta
+                    denominator = math.sqrt(p1*q1/n1 + p2*q2/n2)
+                    z_score_part1 = numerator / denominator
+                    
+                    pooled_se = math.sqrt(p_pooled * q_pooled * (1/n1 + 1/n2))
+                    z_score_part2 = z_alpha * pooled_se / denominator
+                    
+                    final_z = z_score_part1 - z_score_part2
+                    power = stats.norm.cdf(final_z)
+                    
+                    st.latex(f'''Power = \\Phi\\left\\{{\\frac{{{delta:.2f}}}{{\\sqrt{{{p1:.2f} \\times {q1:.2f}/{n1} + {p2:.2f} \\times {q2:.2f}/{n2}}}}} - {z_alpha:.2f} \\times \\frac{{\\sqrt{{{p_pooled:.3f} \\times {q_pooled:.3f}(\\frac{{1}}{{{n1}}} + \\frac{{1}}{{{n2}}})}}}}{{\\sqrt{{{p1:.2f} \\times {q1:.2f}/{n1} + {p2:.2f} \\times {q2:.2f}/{n2}}}}}\\right\\}}''')
+                    
+                    st.latex(f'''Power = \\Phi({final_z:.3f}) = {power:.3f} = {power*100:.1f}\\% \\text{{ power}}''')
     
     else:  # One group vs population
         if outcome_type == "Continuous (means)":
             if not is_posthoc:
                 st.markdown("#### **One-Sample T-Test Sample Size Formula:**")
                 st.latex(r'''N = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot \sigma^2}{(\mu_{sample} - \mu_{population})^2}''')
-                
-                st.markdown("""
-                **Where:**
-                - **N** = required sample size
-                - **μₛₐₘₚₗₑ** = expected sample mean
-                - **μₚₒₚᵤₗₐₜᵢₒₙ** = known population mean
-                - **σ** = population standard deviation
-                """)
             else:
                 st.markdown("#### **One-Sample T-Test Post-Hoc Power Formula:**")
                 st.latex(r'''Power = 1 - T_{df,\delta}(t_{1-\alpha/2})''')
@@ -1010,17 +1100,31 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
             if not is_posthoc:
                 st.markdown("#### **One-Sample Proportion Test Sample Size Formula:**")
                 st.latex(r'''N = \frac{[z_{1-\alpha/2}\sqrt{p_0q_0} + z_{1-\beta}\sqrt{p_1q_1}]^2}{(p_1 - p_0)^2}''')
-                
-                st.markdown("""
-                **Parameter Definitions:**
-                - **N** = required sample size for study group
-                - **p₀** = known population proportion (baseline)
-                - **p₁** = expected study group proportion
-                - **q₀ = 1 - p₀, q₁ = 1 - p₁** = complement proportions
-                """)
             else:
                 st.markdown("#### **One-Sample Proportion Post-Hoc Power Formula:**")
                 st.latex(r'''Power = \Phi\left(\frac{|\hat{p} - p_0| - z_{1-\alpha/2}\sqrt{p_0q_0/n}}{\sqrt{\hat{p}(1-\hat{p})/n}}\right)''')
+                
+                if all(key in params for key in ['n', 'sample_prop', 'population_prop', 'alpha']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    
+                    n = params['n']
+                    p_hat = params['sample_prop']
+                    p0 = params['population_prop']
+                    q0 = 1 - p0
+                    q_hat = 1 - p_hat
+                    alpha = params['alpha']
+                    z_alpha = 1.96 if alpha == 0.05 else stats.norm.ppf(1 - alpha/2)
+                    
+                    delta = abs(p_hat - p0)
+                    se_null = math.sqrt(p0 * q0 / n)
+                    se_alt = math.sqrt(p_hat * q_hat / n)
+                    
+                    z_score = (delta - z_alpha * se_null) / se_alt
+                    power = stats.norm.cdf(z_score)
+                    
+                    st.latex(f'''Power = \\Phi\\left(\\frac{{|{p_hat:.2f} - {p0:.2f}| - {z_alpha:.2f}\\sqrt{{{p0:.2f} \\times {q0:.2f}/{n}}}}}{{\\sqrt{{{p_hat:.2f} \\times {q_hat:.2f}/{n}}}}}\\right)''')
+                    
+                    st.latex(f'''Power = \\Phi({z_score:.3f}) = {power:.3f} = {power*100:.1f}\\% \\text{{ power}}''')
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1354,6 +1458,29 @@ def main():
                     
                     allocation_ratio = create_synchronized_input("Allocation ratio (group 2 / group 1)", 0.1, 5.0, 1.0, 0.1,
                                                                "Ratio of group 2 size to group 1 size", "allocation", "%.1f")
+                    
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                        try:
+                            results = SampleSizeCalculator.calculate_continuous_two_groups(
+                                mean1, mean2, std_dev, alpha, power, allocation_ratio, two_sided, dropout_rate
+                            )
+                            
+                            params = {
+                                'mean1': mean1, 'mean2': mean2, 'std_dev': std_dev,
+                                'std_dev1': std_dev1, 'std_dev2': std_dev2,
+                                'alpha': alpha, 'power': power, 'z_alpha': results['z_alpha'],
+                                'z_beta': results['z_beta'], 'allocation_ratio': allocation_ratio
+                            }
+                            
+                            st.session_state.results = results
+                            st.session_state.params = params
+                            st.session_state.study_design = study_design
+                            st.session_state.outcome_type = outcome_type
+                            
+                            display_professional_results_tables(results, study_design, outcome_type, params)
+                            
+                        except Exception as e:
+                            st.error(f"Calculation error: {str(e)}")
                     
                     if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
                         try:
@@ -1875,44 +2002,271 @@ def main():
         
         with posthoc_tab3:
             if 'posthoc_results' in st.session_state:
-                st.markdown("### 📊 **Post-Hoc Power Interpretation**")
+                st.markdown("### 📊 **Post-Hoc Power Analysis & Visualizations**")
                 
-                power_val = st.session_state.posthoc_results.get('power_percent', st.session_state.posthoc_results.get('power', 0) * 100)
+                # Create comprehensive post-hoc visualizations
+                st.markdown('<div class="visualization-container">', unsafe_allow_html=True)
                 
-                if power_val >= 80:
-                    st.success(f"**High Power ({power_val:.1f}%):** Your study had adequate power to detect the observed effect size.")
-                elif power_val >= 50:
-                    st.warning(f"**Moderate Power ({power_val:.1f}%):** Your study had moderate power. Consider larger sample sizes for future studies.")
-                else:
-                    st.error(f"**Low Power ({power_val:.1f}%):** Your study was underpowered to detect the observed effect size.")
+                # Create tabs for different visualization types
+                viz_tab1, viz_tab2, viz_tab3 = st.tabs(["📈 Power Curves", "🎯 Sample Size Impact", "📊 Effect Size Analysis"])
                 
-                st.markdown("""
-                **Important Considerations:**
-                - Post-hoc power is directly related to the p-value of your test
-                - Low post-hoc power doesn't necessarily invalidate negative results
-                - Consider reporting confidence intervals and effect sizes instead
-                - Use these results to inform future study design, not to explain current results
-                """)
+                with viz_tab1:
+                    # Power vs Effect Size curves
+                    if study_design == "Two independent study groups":
+                        if outcome_type == "Dichotomous (yes/no)":
+                            # Power vs effect size for two proportions
+                            p1_base = st.session_state.posthoc_params.get('p1', 0.2)
+                            effect_sizes = np.linspace(0.05, 0.5, 30)
+                            powers = []
+                            
+                            n1 = st.session_state.posthoc_params.get('n1', 50)
+                            n2 = st.session_state.posthoc_params.get('n2', 50)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for es in effect_sizes:
+                                p2_test = p1_base + es
+                                if p2_test <= 0.99:
+                                    try:
+                                        power_result = PostHocPowerAnalyzer.calculate_power_two_proportions(
+                                            n1, n2, p1_base, p2_test, alpha, True
+                                        )
+                                        powers.append(power_result['power'] * 100)
+                                    except:
+                                        powers.append(0)
+                                else:
+                                    powers.append(np.nan)
+                            
+                            fig1 = go.Figure()
+                            fig1.add_trace(go.Scatter(
+                                x=effect_sizes, y=powers,
+                                mode='lines+markers',
+                                name='Power vs Effect Size',
+                                line=dict(color='#2E86AB', width=4),
+                                marker=dict(size=8)
+                            ))
+                            
+                            # Add marker for current study
+                            current_effect = st.session_state.posthoc_results.get('effect_size', 0)
+                            current_power = st.session_state.posthoc_results.get('power_percent', 0)
+                            
+                            fig1.add_trace(go.Scatter(
+                                x=[current_effect],
+                                y=[current_power],
+                                mode='markers',
+                                name='Your Study',
+                                marker=dict(size=15, color='red', symbol='star',
+                                           line=dict(width=2, color='white'))
+                            ))
+                            
+                            fig1.add_hline(y=80, line_dash="dash", line_color="green", 
+                                           annotation_text="80% Power Threshold")
+                            
+                            fig1.update_layout(
+                                title="Statistical Power vs Effect Size",
+                                xaxis_title="Effect Size (Absolute Difference in Proportions)",
+                                yaxis_title="Statistical Power (%)",
+                                height=500,
+                                yaxis=dict(range=[0, 100])
+                            )
+                            
+                            st.plotly_chart(fig1, use_container_width=True)
+                            
+                        elif outcome_type == "Continuous (means)":
+                            # Power vs effect size for continuous outcomes
+                            mean1_base = st.session_state.posthoc_params.get('mean1', 10)
+                            std_dev = st.session_state.posthoc_params.get('std_dev', 2)
+                            effect_sizes = np.linspace(0.2, 2.0, 30)
+                            powers = []
+                            
+                            n1 = st.session_state.posthoc_params.get('n1', 25)
+                            n2 = st.session_state.posthoc_params.get('n2', 25)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for es in effect_sizes:
+                                mean2_test = mean1_base + es * std_dev
+                                try:
+                                    power_result = PostHocPowerAnalyzer.calculate_power_two_means(
+                                        n1, n2, mean1_base, mean2_test, std_dev, alpha, True
+                                    )
+                                    powers.append(power_result['power'] * 100)
+                                except:
+                                    powers.append(0)
+                            
+                            fig1 = go.Figure()
+                            fig1.add_trace(go.Scatter(
+                                x=effect_sizes, y=powers,
+                                mode='lines+markers',
+                                name='Power vs Effect Size',
+                                line=dict(color='#2E86AB', width=4),
+                                marker=dict(size=8)
+                            ))
+                            
+                            # Add marker for current study
+                            current_effect = st.session_state.posthoc_results.get('effect_size', 0)
+                            current_power = st.session_state.posthoc_results.get('power_percent', 0)
+                            
+                            fig1.add_trace(go.Scatter(
+                                x=[current_effect],
+                                y=[current_power],
+                                mode='markers',
+                                name='Your Study',
+                                marker=dict(size=15, color='red', symbol='star',
+                                           line=dict(width=2, color='white'))
+                            ))
+                            
+                            fig1.add_hline(y=80, line_dash="dash", line_color="green", 
+                                           annotation_text="80% Power Threshold")
+                            
+                            fig1.update_layout(
+                                title="Statistical Power vs Effect Size (Cohen's d)",
+                                xaxis_title="Effect Size (Cohen's d)",
+                                yaxis_title="Statistical Power (%)",
+                                height=500,
+                                yaxis=dict(range=[0, 100])
+                            )
+                            
+                            st.plotly_chart(fig1, use_container_width=True)
                 
-                # Add additional interpretation info boxes
-                st.markdown("""
-                <div class="study-type-info">
-                <strong>Understanding Your Results:</strong><br>
-                Power analysis helps you understand the probability that your study design could detect a true effect of the observed magnitude. 
-                This is crucial for interpreting negative results and planning future studies.
-                </div>
-                """, unsafe_allow_html=True)
+                with viz_tab2:
+                    # Power vs Sample Size curves
+                    if study_design == "Two independent study groups":
+                        sample_sizes = np.arange(10, 200, 5)
+                        powers = []
+                        
+                        if outcome_type == "Dichotomous (yes/no)":
+                            p1 = st.session_state.posthoc_params.get('p1', 0.2)
+                            p2 = st.session_state.posthoc_params.get('p2', 0.3)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for n in sample_sizes:
+                                try:
+                                    power_result = PostHocPowerAnalyzer.calculate_power_two_proportions(
+                                        n, n, p1, p2, alpha, True
+                                    )
+                                    powers.append(power_result['power'] * 100)
+                                except:
+                                    powers.append(0)
+                                    
+                        else:  # Continuous
+                            mean1 = st.session_state.posthoc_params.get('mean1', 10)
+                            mean2 = st.session_state.posthoc_params.get('mean2', 12)
+                            std_dev = st.session_state.posthoc_params.get('std_dev', 2)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for n in sample_sizes:
+                                try:
+                                    power_result = PostHocPowerAnalyzer.calculate_power_two_means(
+                                        n, n, mean1, mean2, std_dev, alpha, True
+                                    )
+                                    powers.append(power_result['power'] * 100)
+                                except:
+                                    powers.append(0)
+                        
+                        fig2 = go.Figure()
+                        fig2.add_trace(go.Scatter(
+                            x=sample_sizes * 2,  # Total sample size
+                            y=powers,
+                            mode='lines+markers',
+                            name='Power vs Sample Size',
+                            line=dict(color='#A23B72', width=4),
+                            marker=dict(size=6)
+                        ))
+                        
+                        # Add marker for current study
+                        current_n1 = st.session_state.posthoc_params.get('n1', 25)
+                        current_n2 = st.session_state.posthoc_params.get('n2', 25)
+                        current_total = current_n1 + current_n2
+                        current_power = st.session_state.posthoc_results.get('power_percent', 0)
+                        
+                        fig2.add_trace(go.Scatter(
+                            x=[current_total],
+                            y=[current_power],
+                            mode='markers',
+                            name='Your Study',
+                            marker=dict(size=15, color='red', symbol='star',
+                                       line=dict(width=2, color='white'))
+                        ))
+                        
+                        fig2.add_hline(y=80, line_dash="dash", line_color="green", 
+                                       annotation_text="80% Power Threshold")
+                        
+                        fig2.update_layout(
+                            title="Statistical Power vs Total Sample Size",
+                            xaxis_title="Total Sample Size",
+                            yaxis_title="Statistical Power (%)",
+                            height=500,
+                            yaxis=dict(range=[0, 100])
+                        )
+                        
+                        st.plotly_chart(fig2, use_container_width=True)
                 
-                st.markdown("""
-                <div class="power-warning">
-                <strong>Clinical Significance vs. Statistical Power:</strong><br>
-                Remember that statistical power doesn't address clinical significance. A study might be adequately powered 
-                to detect small differences that may not be clinically meaningful, or underpowered to detect large, 
-                clinically important differences.
-                </div>
-                """, unsafe_allow_html=True)
+                with viz_tab3:
+                    # Effect size interpretation and recommendations
+                    st.markdown("#### **Effect Size Analysis**")
+                    current_effect = st.session_state.posthoc_results.get('effect_size', 0)
+                    current_power = st.session_state.posthoc_results.get('power_percent', 0)
+                    
+                    if outcome_type == "Continuous (means)":
+                        if current_effect < 0.2:
+                            effect_interpretation = "Small"
+                            color = "info"
+                        elif current_effect < 0.5:
+                            effect_interpretation = "Medium"
+                            color = "success"
+                        else:
+                            effect_interpretation = "Large"
+                            color = "success"
+                            
+                        if color == "info":
+                            st.info(f"**{effect_interpretation} Effect Size** (Cohen's d = {current_effect:.3f}): Small effects are harder to detect and require larger sample sizes.")
+                        else:
+                            st.success(f"**{effect_interpretation} Effect Size** (Cohen's d = {current_effect:.3f}): This effect size is considered {effect_interpretation.lower()} in magnitude.")
+                    else:
+                        st.info(f"**Proportion Difference** = {current_effect:.3f}: Absolute difference between group proportions.")
+                    
+                    # Power interpretation
+                    st.markdown("#### **Power Analysis Results**")
+                    if current_power >= 80:
+                        st.success(f"**Adequate Power ({current_power:.1f}%):** Your study had sufficient power to detect the observed effect size.")
+                    elif current_power >= 50:
+                        st.warning(f"**Moderate Power ({current_power:.1f}%):** Your study had moderate power. Consider larger sample sizes for future studies.")
+                    else:
+                        st.error(f"**Low Power ({current_power:.1f}%):** Your study was underpowered to detect the observed effect size.")
+                    
+                    # Recommendations
+                    st.markdown("#### **Recommendations for Future Studies**")
+                    if current_power < 80:
+                        # Calculate required sample size for 80% power
+                        if study_design == "Two independent study groups":
+                            if outcome_type == "Dichotomous (yes/no)":
+                                req_result = SampleSizeCalculator.calculate_proportions_two_groups(
+                                    st.session_state.posthoc_params.get('p1', 0.2),
+                                    st.session_state.posthoc_params.get('p2', 0.3),
+                                    st.session_state.posthoc_params.get('alpha', 0.05),
+                                    0.80
+                                )
+                                req_sample = req_result['total']
+                            else:
+                                req_result = SampleSizeCalculator.calculate_continuous_two_groups(
+                                    st.session_state.posthoc_params.get('mean1', 10),
+                                    st.session_state.posthoc_params.get('mean2', 12),
+                                    st.session_state.posthoc_params.get('std_dev', 2),
+                                    st.session_state.posthoc_params.get('alpha', 0.05),
+                                    0.80
+                                )
+                                req_sample = req_result['total']
+                                
+                            st.markdown(f"""
+                            **To achieve 80% power with the same effect size:**
+                            - Required total sample size: **{req_sample}** subjects
+                            - Your study had: **{current_n1 + current_n2}** subjects
+                            - Additional subjects needed: **{max(0, req_sample - (current_n1 + current_n2))}**
+                            """)
+                    
+                st.markdown('</div>', unsafe_allow_html=True)
+                
             else:
-                st.info("Please calculate post-hoc power first to view the interpretation.")
+                st.info("Please calculate post-hoc power first to view the interpretation and visualizations.")
     
     with main_tab3:
         st.markdown('<div class="education-container">', unsafe_allow_html=True)
