@@ -30,15 +30,19 @@ st.markdown("""
     }
     
     .calc-container {
-        background: #f8f9fa;
-        padding: 2rem;
-        border-radius: 15px;
+        background: #ffffff;
+        padding: 1.5rem;
         border: 1px solid #dee2e6;
         margin-bottom: 1rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     
-
+    .formula-container {
+        background: #ffffff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        margin: 1rem 0;
+    }
     
     .result-container {
         background: linear-gradient(145deg, #d4edda, #c3e6cb);
@@ -95,19 +99,16 @@ st.markdown("""
     
     .visualization-container {
         background: white;
-        padding: 2rem;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        padding: 1.5rem;
+        border: 1px solid #dee2e6;
         margin: 1rem 0;
     }
     
     .education-container {
-        background: #e3f2fd;
-        padding: 2rem;
-        border-radius: 15px;
-        border-left: 4px solid #2196f3;
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-left: 3px solid #2196f3;
         margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(33,150,243,0.2);
     }
     
     .study-type-info {
@@ -673,27 +674,28 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
         elif study_design == "Two independent study groups" and outcome_type == "Dichotomous (yes/no)":
             # Proportion difference vs sample size
             p1_base = base_params.get('p1', 0.3)
-            effect_sizes = []
+            p2_range = np.linspace(0.05, 0.95, 30)
             sample_sizes = []
             
-            for p2 in np.linspace(0.05, 0.95, 30):
-                effect_size = abs(p1_base - p2)
-                if effect_size > 0.01:
+            for p2 in p2_range:
+                if abs(p1_base - p2) > 0.01:
                     try:
                         result = SampleSizeCalculator.calculate_proportions_two_groups(
                             p1_base, p2, base_params['alpha'], base_params['power'],
                             dropout_rate=0.0
                         )
-                        effect_sizes.append(effect_size)
-                        sample_sizes.append(result['total_unadjusted'])
+                        sample_sizes.append(result.get('total_unadjusted', result.get('total', 0)))
                     except:
-                        continue
+                        sample_sizes.append(np.nan)
+                else:
+                    sample_sizes.append(np.nan)
             
             fig1.add_trace(go.Scatter(
-                x=effect_sizes, y=sample_sizes,
-                mode='lines',
+                x=np.abs(p2_range - p1_base), y=sample_sizes,
+                mode='lines+markers',
                 name='Effect Size vs Sample Size',
-                line=dict(color='#2E86AB', width=4)
+                line=dict(color='#2E86AB', width=4),
+                marker=dict(size=8)
             ))
             
             # Add marker for current study
