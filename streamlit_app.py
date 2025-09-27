@@ -420,23 +420,23 @@ def create_synchronized_input(label, min_val, max_val, default_val, step=0.01, h
     st.markdown(f"**{label}**", help=help_text)
     col1, col2 = st.columns([2, 1])
     
-    slider_key = f"slider_{key_suffix}"
-    number_key = f"number_{key_suffix}"
+    # Use a single shared key for synchronization
+    shared_key = f"sync_{key_suffix}"
     
-    # Initialize session state if needed with proper type conversion
-    if slider_key not in st.session_state:
-        st.session_state[slider_key] = float(default_val)
-    if number_key not in st.session_state:
-        st.session_state[number_key] = float(default_val)
+    # Initialize with default value if not exists
+    if shared_key not in st.session_state:
+        st.session_state[shared_key] = float(default_val)
+    
+    current_value = st.session_state[shared_key]
     
     with col1:
         slider_val = st.slider(
             "",
             min_value=float(min_val),
             max_value=float(max_val), 
-            value=float(st.session_state[slider_key]),
+            value=current_value,
             step=float(step),
-            key=slider_key,
+            key=f"slider_{key_suffix}",
             label_visibility="collapsed"
         )
     
@@ -445,25 +445,22 @@ def create_synchronized_input(label, min_val, max_val, default_val, step=0.01, h
             "",
             min_value=float(min_val),
             max_value=float(max_val),
-            value=float(st.session_state[number_key]),
+            value=current_value,
             step=float(step),
-            key=number_key,
+            key=f"number_{key_suffix}",
             format=format_str,
             label_visibility="collapsed"
         )
     
-    # Synchronize values - avoid infinite loops by checking if values actually changed
-    current_slider = st.session_state.get(slider_key, default_val)
-    current_number = st.session_state.get(number_key, default_val)
+    # Update shared value if either widget changed
+    if slider_val != current_value:
+        st.session_state[shared_key] = slider_val
+        return slider_val
+    elif number_val != current_value:
+        st.session_state[shared_key] = number_val
+        return number_val
     
-    if abs(slider_val - current_number) > step/10:  # Use small threshold to avoid floating point issues
-        st.session_state[number_key] = slider_val
-        st.rerun()
-    elif abs(number_val - current_slider) > step/10:
-        st.session_state[slider_key] = number_val
-        st.rerun()
-    
-    return slider_val
+    return current_value
 
 def display_study_type_info(study_design, outcome_type):
     """Display information about selected study types"""
@@ -775,71 +772,72 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
+    # Unified sidebar configuration for both tabs
+    with st.sidebar:
+        st.markdown("## 📊 Study Configuration")
+        
+        st.markdown("**Select Study Design:**")
+        study_design = st.radio(
+            "",
+            ["👥 Two independent study groups", "👤 One study group vs. population"],
+            help="Choose your study design type"
+        )
+        
+        # Clean up design names
+        if "Two independent" in study_design:
+            study_design = "Two independent study groups"
+        else:
+            study_design = "One study group vs. population"
+        
+        st.markdown("**Select Outcome Type:**")
+        outcome_type = st.radio(
+            "",
+            ["🔘 Dichotomous (yes/no)", "📊 Continuous (means)"],
+            help="Select the type of your primary outcome variable"
+        )
+        
+        # Clean up outcome names
+        if "Dichotomous" in outcome_type:
+            outcome_type = "Dichotomous (yes/no)"
+        else:
+            outcome_type = "Continuous (means)"
+        
+        st.markdown("---")
+        st.markdown("### ⚙️ Statistical Parameters")
+        
+        confidence_level = st.selectbox(
+            "**Confidence Level (%)**",
+            [90, 95, 99],
+            index=1,
+            help="The confidence level determines the probability that the confidence interval contains the true population parameter"
+        )
+        alpha = (100 - confidence_level) / 100
+        
+        power_percent = st.selectbox(
+            "**Statistical Power (%)**",
+            [70, 80, 90, 95],
+            index=1,
+            help="Statistical power is the probability of correctly rejecting a false null hypothesis (avoiding Type II error)"
+        )
+        power = power_percent / 100
+        
+        two_sided = st.checkbox(
+            "**Two-sided test**",
+            value=True,
+            help="Two-sided tests detect differences in either direction, while one-sided tests only detect differences in one specified direction"
+        )
+        
+        dropout_rate = create_synchronized_input(
+            "Expected dropout rate (%)",
+            0.0, 50.0, 10.0, 1.0, 
+            "Percentage of participants expected to drop out or be lost to follow-up during the study",
+            "dropout"
+        ) / 100
+    
     # Main navigation tabs
     main_tab1, main_tab2, main_tab3 = st.tabs(["📊 Sample Size Analysis", "🔄 Post-Hoc Power Analysis", "📚 Education & Resources"])
     
     with main_tab1:
-        # Sidebar for sample size analysis
-        with st.sidebar:
-            st.markdown("## 📊 Study Configuration")
-            
-            st.markdown("**Select Study Design:**")
-            study_design = st.radio(
-                "",
-                ["👥 Two independent study groups", "👤 One study group vs. population"],
-                help="Choose your study design type"
-            )
-            
-            # Clean up design names
-            if "Two independent" in study_design:
-                study_design = "Two independent study groups"
-            else:
-                study_design = "One study group vs. population"
-            
-            st.markdown("**Select Outcome Type:**")
-            outcome_type = st.radio(
-                "",
-                ["🔘 Dichotomous (yes/no)", "📊 Continuous (means)"],
-                help="Select the type of your primary outcome variable"
-            )
-            
-            # Clean up outcome names
-            if "Dichotomous" in outcome_type:
-                outcome_type = "Dichotomous (yes/no)"
-            else:
-                outcome_type = "Continuous (means)"
-            
-            st.markdown("---")
-            st.markdown("### ⚙️ Statistical Parameters")
-            
-            confidence_level = st.selectbox(
-                "**Confidence Level (%)**",
-                [90, 95, 99],
-                index=1,
-                help="The confidence level determines the probability that the confidence interval contains the true population parameter"
-            )
-            alpha = (100 - confidence_level) / 100
-            
-            power_percent = st.selectbox(
-                "**Statistical Power (%)**",
-                [70, 80, 90, 95],
-                index=1,
-                help="Statistical power is the probability of correctly rejecting a false null hypothesis (avoiding Type II error)"
-            )
-            power = power_percent / 100
-            
-            two_sided = st.checkbox(
-                "**Two-sided test**",
-                value=True,
-                help="Two-sided tests detect differences in either direction, while one-sided tests only detect differences in one specified direction"
-            )
-            
-            dropout_rate = create_synchronized_input(
-                "Expected dropout rate (%)",
-                0.0, 50.0, 10.0, 1.0, 
-                "Percentage of participants expected to drop out or be lost to follow-up during the study",
-                "dropout"
-            ) / 100
         
         # Main content area with study type info
         display_study_type_info(study_design, outcome_type)
@@ -1161,57 +1159,8 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # Post-hoc analysis sidebar
-        with st.sidebar:
-            st.markdown("## 🔄 Post-Hoc Configuration")
-            
-            st.markdown("**Select Study Design:**")
-            posthoc_study_design = st.radio(
-                "",
-                ["👥 Two independent study groups", "👤 One study group vs. population"],
-                help="Choose your completed study design",
-                key="posthoc_design"
-            )
-            
-            # Clean up design names
-            if "Two independent" in posthoc_study_design:
-                posthoc_study_design = "Two independent study groups"
-            else:
-                posthoc_study_design = "One study group vs. population"
-            
-            st.markdown("**Select Outcome Type:**")
-            posthoc_outcome_type = st.radio(
-                "",
-                ["🔘 Dichotomous (yes/no)", "📊 Continuous (means)"],
-                help="Select the type of your primary outcome variable",
-                key="posthoc_outcome"
-            )
-            
-            # Clean up outcome names
-            if "Dichotomous" in posthoc_outcome_type:
-                posthoc_outcome_type = "Dichotomous (yes/no)"
-            else:
-                posthoc_outcome_type = "Continuous (means)"
-            
-            st.markdown("---")
-            st.markdown("### ⚙️ Statistical Parameters")
-            
-            posthoc_confidence_level = st.selectbox(
-                "**Confidence Level (%)**",
-                [90, 95, 99],
-                index=1,
-                key="posthoc_confidence"
-            )
-            posthoc_alpha = (100 - posthoc_confidence_level) / 100
-            
-            posthoc_two_sided = st.checkbox(
-                "**Two-sided test**",
-                value=True,
-                key="posthoc_two_sided"
-            )
-        
-        # Display study type info for post-hoc
-        display_study_type_info(posthoc_study_design, posthoc_outcome_type)
+        # Display study type info for post-hoc using same configuration
+        display_study_type_info(study_design, outcome_type)
         
         # Post-hoc sub-tabs
         posthoc_tab1, posthoc_tab2, posthoc_tab3 = st.tabs(["📋 Calculator", "🧮 Formula", "📊 Interpretation"])
@@ -1219,9 +1168,9 @@ def main():
         with posthoc_tab1:
             st.markdown('<div class="calc-container">', unsafe_allow_html=True)
             
-            # Dynamic form for post-hoc analysis
-            if posthoc_study_design == "Two independent study groups":
-                if posthoc_outcome_type == "Continuous (means)":
+            # Dynamic form for post-hoc analysis using unified configuration
+            if study_design == "Two independent study groups":
+                if outcome_type == "Continuous (means)":
                     st.markdown("### **Actual Study Results - Continuous Outcomes:**")
                     
                     col1, col2 = st.columns(2)
@@ -1243,20 +1192,20 @@ def main():
                     if st.button("🔍 **Calculate Post-Hoc Power**", type="primary", use_container_width=True, key="posthoc_calc_cont_two"):
                         try:
                             power_results = PostHocPowerAnalyzer.calculate_power_two_means(
-                                posthoc_n1, posthoc_n2, posthoc_mean1, posthoc_mean2, posthoc_std, posthoc_alpha, posthoc_two_sided
+                                posthoc_n1, posthoc_n2, posthoc_mean1, posthoc_mean2, posthoc_std, alpha, two_sided
                             )
                             
                             posthoc_params = {
                                 'n1': posthoc_n1, 'n2': posthoc_n2, 'mean1': posthoc_mean1, 'mean2': posthoc_mean2,
-                                'std_dev': posthoc_std, 'alpha': posthoc_alpha, 'power': power_results['power']
+                                'std_dev': posthoc_std, 'alpha': alpha, 'power': power_results['power']
                             }
                             
-                            display_professional_results_tables(power_results, posthoc_study_design, posthoc_outcome_type, posthoc_params, is_posthoc=True)
+                            display_professional_results_tables(power_results, study_design, outcome_type, posthoc_params, is_posthoc=True)
                             
                             st.session_state.posthoc_results = power_results
                             st.session_state.posthoc_params = posthoc_params
-                            st.session_state.posthoc_study_design = posthoc_study_design
-                            st.session_state.posthoc_outcome_type = posthoc_outcome_type
+                            st.session_state.posthoc_study_design = study_design
+                            st.session_state.posthoc_outcome_type = outcome_type
                             
                         except Exception as e:
                             st.error(f"Calculation error: {str(e)}")
@@ -1280,26 +1229,26 @@ def main():
                     if st.button("🔍 **Calculate Post-Hoc Power**", type="primary", use_container_width=True, key="posthoc_calc_prop_two"):
                         try:
                             power_results = PostHocPowerAnalyzer.calculate_power_two_proportions(
-                                posthoc_n1, posthoc_n2, posthoc_p1, posthoc_p2, posthoc_alpha, posthoc_two_sided
+                                posthoc_n1, posthoc_n2, posthoc_p1, posthoc_p2, alpha, two_sided
                             )
                             
                             posthoc_params = {
                                 'n1': posthoc_n1, 'n2': posthoc_n2, 'p1': posthoc_p1, 'p2': posthoc_p2,
-                                'alpha': posthoc_alpha, 'power': power_results['power']
+                                'alpha': alpha, 'power': power_results['power']
                             }
                             
-                            display_professional_results_tables(power_results, posthoc_study_design, posthoc_outcome_type, posthoc_params, is_posthoc=True)
+                            display_professional_results_tables(power_results, study_design, outcome_type, posthoc_params, is_posthoc=True)
                             
                             st.session_state.posthoc_results = power_results
                             st.session_state.posthoc_params = posthoc_params
-                            st.session_state.posthoc_study_design = posthoc_study_design
-                            st.session_state.posthoc_outcome_type = posthoc_outcome_type
+                            st.session_state.posthoc_study_design = study_design
+                            st.session_state.posthoc_outcome_type = outcome_type
                             
                         except Exception as e:
                             st.error(f"Calculation error: {str(e)}")
             
             else:  # One group vs population
-                if posthoc_outcome_type == "Continuous (means)":
+                if outcome_type == "Continuous (means)":
                     st.markdown("### **Actual Study Results - Continuous Outcomes:**")
                     
                     col1, col2 = st.columns(2)
@@ -1320,20 +1269,20 @@ def main():
                     if st.button("🔍 **Calculate Post-Hoc Power**", type="primary", use_container_width=True, key="posthoc_calc_cont_one"):
                         try:
                             power_results = PostHocPowerAnalyzer.calculate_power_one_mean(
-                                posthoc_n, posthoc_sample_mean, posthoc_pop_mean, posthoc_std_one, posthoc_alpha, posthoc_two_sided
+                                posthoc_n, posthoc_sample_mean, posthoc_pop_mean, posthoc_std_one, alpha, two_sided
                             )
                             
                             posthoc_params = {
                                 'n': posthoc_n, 'sample_mean': posthoc_sample_mean, 'population_mean': posthoc_pop_mean,
-                                'std_dev': posthoc_std_one, 'alpha': posthoc_alpha, 'power': power_results['power']
+                                'std_dev': posthoc_std_one, 'alpha': alpha, 'power': power_results['power']
                             }
                             
-                            display_professional_results_tables(power_results, posthoc_study_design, posthoc_outcome_type, posthoc_params, is_posthoc=True)
+                            display_professional_results_tables(power_results, study_design, outcome_type, posthoc_params, is_posthoc=True)
                             
                             st.session_state.posthoc_results = power_results
                             st.session_state.posthoc_params = posthoc_params
-                            st.session_state.posthoc_study_design = posthoc_study_design
-                            st.session_state.posthoc_outcome_type = posthoc_outcome_type
+                            st.session_state.posthoc_study_design = study_design
+                            st.session_state.posthoc_outcome_type = outcome_type
                             
                         except Exception as e:
                             st.error(f"Calculation error: {str(e)}")
@@ -1357,20 +1306,20 @@ def main():
                     if st.button("🔍 **Calculate Post-Hoc Power**", type="primary", use_container_width=True, key="posthoc_calc_prop_one"):
                         try:
                             power_results = PostHocPowerAnalyzer.calculate_power_one_proportion(
-                                posthoc_n_prop, posthoc_sample_prop, posthoc_pop_prop, posthoc_alpha, posthoc_two_sided
+                                posthoc_n_prop, posthoc_sample_prop, posthoc_pop_prop, alpha, two_sided
                             )
                             
                             posthoc_params = {
                                 'n': posthoc_n_prop, 'sample_prop': posthoc_sample_prop, 'population_prop': posthoc_pop_prop,
-                                'alpha': posthoc_alpha, 'power': power_results['power']
+                                'alpha': alpha, 'power': power_results['power']
                             }
                             
-                            display_professional_results_tables(power_results, posthoc_study_design, posthoc_outcome_type, posthoc_params, is_posthoc=True)
+                            display_professional_results_tables(power_results, study_design, outcome_type, posthoc_params, is_posthoc=True)
                             
                             st.session_state.posthoc_results = power_results
                             st.session_state.posthoc_params = posthoc_params
-                            st.session_state.posthoc_study_design = posthoc_study_design
-                            st.session_state.posthoc_outcome_type = posthoc_outcome_type
+                            st.session_state.posthoc_study_design = study_design
+                            st.session_state.posthoc_outcome_type = outcome_type
                             
                         except Exception as e:
                             st.error(f"Calculation error: {str(e)}")
@@ -1380,8 +1329,8 @@ def main():
         with posthoc_tab2:
             if 'posthoc_params' in st.session_state:
                 display_latex_formula_detailed(
-                    st.session_state.posthoc_study_design,
-                    st.session_state.posthoc_outcome_type,
+                    study_design,
+                    outcome_type,
                     st.session_state.posthoc_params,
                     is_posthoc=True
                 )
@@ -1408,6 +1357,24 @@ def main():
                 - Consider reporting confidence intervals and effect sizes instead
                 - Use these results to inform future study design, not to explain current results
                 """)
+                
+                # Add additional interpretation info boxes
+                st.markdown("""
+                <div class="study-type-info">
+                <strong>Understanding Your Results:</strong><br>
+                Power analysis helps you understand the probability that your study design could detect a true effect of the observed magnitude. 
+                This is crucial for interpreting negative results and planning future studies.
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("""
+                <div class="power-warning">
+                <strong>Clinical Significance vs. Statistical Power:</strong><br>
+                Remember that statistical power doesn't address clinical significance. A study might be adequately powered 
+                to detect small differences that may not be clinically meaningful, or underpowered to detect large, 
+                clinically important differences.
+                </div>
+                """, unsafe_allow_html=True)
             else:
                 st.info("Please calculate post-hoc power first to view the interpretation.")
     
