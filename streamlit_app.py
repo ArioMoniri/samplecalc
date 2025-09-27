@@ -2188,7 +2188,33 @@ def main():
                             st.error(f"Calculation error: {str(e)}")
                 
                 else:  # Dichotomous outcomes
-                    st.markdown("### **Proportions:**")
+
+                    # Add CSS styles for the container
+                    st.markdown(
+                        """
+                        <style>
+                        .visualization-container {
+                            background-color: #f5f5f5;
+                            border-radius: 8px;
+                            padding-top: 5px;      /* reduce top padding */
+                            padding-bottom: 5px;   /* reduce bottom padding */
+                            padding-left: 15px;    /* keep side padding */
+                            padding-right: 15px;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Your container with heading
+                    st.markdown(
+                        """
+                        <div class="visualization-container">
+                            <h3>∷ <b>Proportions:</b></h3>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
                     
                     # Enrollment ratio options
                     ratio_type = st.selectbox(
