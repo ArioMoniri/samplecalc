@@ -39,12 +39,11 @@ st.markdown("""
     }
     
     .formula-container {
-        background: linear-gradient(145deg, #ffffff, #f8f9fa);
-        padding: 2rem;
-        border-radius: 15px;
-        border: 2px solid #007bff;
-        margin: 1.5rem 0;
-        box-shadow: 0 4px 20px rgba(0,123,255,0.15);
+        background: #ffffff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        margin: 1rem 0;
     }
     
     .result-container {
@@ -136,22 +135,25 @@ st.markdown("""
     /* Fix tab title positioning and remove shadows */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
+        box-shadow: none;
     }
     
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 4px 4px 0px 0px;
+        background-color: #f8f9fa;
+        border-radius: 0;
         gap: 1px;
         padding-top: 10px;
         padding-bottom: 10px;
         box-shadow: none !important;
+        border: none;
     }
     
     .stTabs [aria-selected="true"] {
         background-color: #ffffff;
         box-shadow: none !important;
+        border-bottom: 2px solid #007bff;
     }
     
     /* Fix visualization container title positioning */
@@ -677,28 +679,27 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
         elif study_design == "Two independent study groups" and outcome_type == "Dichotomous (yes/no)":
             # Proportion difference vs sample size
             p1_base = base_params.get('p1', 0.3)
-            p2_range = np.linspace(0.05, 0.95, 30)
+            effect_sizes = []
             sample_sizes = []
             
-            for p2 in p2_range:
-                if abs(p1_base - p2) > 0.01:
+            for p2 in np.linspace(0.05, 0.95, 30):
+                effect_size = abs(p1_base - p2)
+                if effect_size > 0.01:
                     try:
                         result = SampleSizeCalculator.calculate_proportions_two_groups(
                             p1_base, p2, base_params['alpha'], base_params['power'],
-                            dropout_rate=0.0  # Use unadjusted for sensitivity analysis
+                            dropout_rate=0.0
                         )
+                        effect_sizes.append(effect_size)
                         sample_sizes.append(result['total_unadjusted'])
                     except:
-                        sample_sizes.append(np.nan)
-                else:
-                    sample_sizes.append(np.nan)
+                        continue
             
             fig1.add_trace(go.Scatter(
-                x=np.abs(p2_range - p1_base), y=sample_sizes,
-                mode='lines+markers',
+                x=effect_sizes, y=sample_sizes,
+                mode='lines',
                 name='Effect Size vs Sample Size',
-                line=dict(color='#2E86AB', width=4),
-                marker=dict(size=8)
+                line=dict(color='#2E86AB', width=4)
             ))
             
             # Add marker for current study
@@ -2349,7 +2350,33 @@ def main():
                             st.error(f"Calculation error: {str(e)}")
                 
                 else:  # Dichotomous outcomes
-                    st.markdown("### **Proportions:**")
+
+                                        # Add CSS styles for the container
+                    st.markdown(
+                        """
+                        <style>
+                        .visualization-container {
+                            background-color: #f5f5f5;
+                            border-radius: 8px;
+                            padding-top: 5px;      /* reduce top padding */
+                            padding-bottom: 5px;   /* reduce bottom padding */
+                            padding-left: 15px;    /* keep side padding */
+                            padding-right: 15px;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Your container with heading
+                    st.markdown(
+                        """
+                        <div class="visualization-container">
+                            <h3>∷ <b>Proportions:</b></h3>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
                     
                     # Add ratio type selector for one group studies
                     ratio_type = st.selectbox(
@@ -2814,6 +2841,7 @@ def main():
         
         st.markdown('</div>', unsafe_allow_html=True)
     
+
     # Footer
     st.markdown("---")
     st.markdown("""
@@ -2822,6 +2850,9 @@ def main():
         <br><br>
         📚 <strong>Educational Resources:</strong> This calculator uses established statistical formulas from Chow, Shao, Wang & Lokhnygina's 
         "Sample Size Calculations in Clinical Research" and Cohen's "Statistical Power Analysis for the Behavioral Sciences"
+        <br><br>
+        ✨ <strong>Empowered by:</strong> Ario Moniri • 
+        <a href="mailto:ariorad.moniri@live.acibadem.edu.tr">ariorad.moniri@live.acibadem.edu.tr</a>
     </div>
     """, unsafe_allow_html=True)
 
