@@ -959,7 +959,35 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
     st.markdown('<div class="formula-container">', unsafe_allow_html=True)
     
     if not is_posthoc:
-        st.markdown("### 🧮 **Sample Size Formula & Parameter Substitution**")
+        # Add CSS styles for the container
+        st.markdown(
+            """
+            <style>
+            .visualization-container {
+                background-color: #f5f5f5;
+                border-radius: 8px;
+                padding-top: 5px;      /* reduce top padding */
+                padding-bottom: 5px;   /* reduce bottom padding */
+                padding-left: 15px;    /* keep side padding */
+                padding-right: 15px;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        
+        # Your container with heading
+        st.markdown(
+            """
+            <div class="visualization-container">
+                <h3>🧮 <b###**Sample Size Formula & Parameter Substitution**</b></h3>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
+
         
         # Show dropout rate explanation when applicable
         dropout_rate = params.get('dropout_rate', 0.0)
