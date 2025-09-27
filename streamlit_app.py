@@ -38,13 +38,7 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     
-    .formula-container {
-        background: #ffffff;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #dee2e6;
-        margin: 1rem 0;
-    }
+
     
     .result-container {
         background: linear-gradient(145deg, #d4edda, #c3e6cb);
