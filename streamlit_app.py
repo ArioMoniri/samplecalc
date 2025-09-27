@@ -585,8 +585,14 @@ def display_study_type_info(study_design, outcome_type):
 def create_enhanced_visualizations(study_design, outcome_type, base_params, results):
     """Create enhanced parameter sensitivity analysis charts"""
     
-    st.markdown('<div class="visualization-container">', unsafe_allow_html=True)
-    st.markdown("### 📊 **Interactive Parameter Sensitivity Analysis**")
+    st.markdown(
+        """
+        <div class="visualization-container">
+            <h3>📊 <b>Interactive Parameter Sensitivity Analysis</b></h3>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     
     # Create tabs for different visualization types
     tab1, tab2, tab3 = st.tabs(["📈 Sensitivity Curves", "🎯 Power Analysis", "📊 Comparison Charts"])
