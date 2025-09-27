@@ -420,7 +420,7 @@ class PostHocPowerAnalyzer:
         }
 
 def create_synchronized_input(label, min_val, max_val, default_val, step=0.01, help_text="", key_suffix="", format_str=None):
-    """Create synchronized slider and number input that update each other"""
+    """Create synchronized slider and number input that update each other in real-time"""
     st.markdown(f"**{label}**", help=help_text)
     
     # Create unique session state key
@@ -432,36 +432,41 @@ def create_synchronized_input(label, min_val, max_val, default_val, step=0.01, h
     if state_key not in st.session_state:
         st.session_state[state_key] = float(default_val)
     
-    current_val = st.session_state[state_key]
-    
+    # Create columns for slider and number input
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Slider always reflects current session state value
+        # Slider with callback to update session state
         slider_val = st.slider(
             "",
             min_value=float(min_val),
             max_value=float(max_val), 
-            value=current_val,
+            value=st.session_state[state_key],
             step=float(step),
             key=slider_key,
-            label_visibility="collapsed",
-            on_change=lambda: st.session_state.update({state_key: st.session_state[slider_key]})
+            label_visibility="collapsed"
         )
+        
+        # Update session state if slider changed
+        if slider_val != st.session_state[state_key]:
+            st.session_state[state_key] = slider_val
     
     with col2:
-        # Number input always reflects current session state value  
+        # Number input with callback to update session state
         number_val = st.number_input(
             "",
             min_value=float(min_val),
             max_value=float(max_val),
-            value=current_val,
+            value=st.session_state[state_key],
             step=float(step),
             key=number_key,
             format=format_str,
-            label_visibility="collapsed",
-            on_change=lambda: st.session_state.update({state_key: st.session_state[number_key]})
+            label_visibility="collapsed"
         )
+        
+        # Update session state if number input changed
+        if number_val != st.session_state[state_key]:
+            st.session_state[state_key] = number_val
     
     # Return the synchronized value
     return st.session_state[state_key]
@@ -520,14 +525,19 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
             effect_sizes = np.linspace(0.2, 2.0, 30)
             sample_sizes = []
             
+            # Get standard deviation - check for pooled_std first, then fall back to std_dev
+            std_dev_to_use = base_params.get('pooled_std', base_params.get('std_dev', 2.0))
+            std_dev1 = base_params.get('std_dev1', std_dev_to_use)
+            std_dev2 = base_params.get('std_dev2', std_dev_to_use)
+            
             for es in effect_sizes:
-                mean_diff = es * base_params['pooled_std']
+                mean_diff = es * std_dev_to_use
                 try:
                     result = SampleSizeCalculator.calculate_continuous_two_groups(
                         base_params['mean1'], 
                         base_params['mean1'] + mean_diff,
-                        base_params['std_dev1'],
-                        base_params['std_dev2'],
+                        std_dev1,
+                        std_dev2,
                         base_params['alpha'],
                         base_params['power']
                     )
@@ -718,9 +728,14 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
             try:
                 if study_design == "Two independent study groups":
                     if outcome_type == "Continuous (means)":
+                        # Get standard deviations with fallback
+                        std_dev_to_use = base_params.get('pooled_std', base_params.get('std_dev', 2.0))
+                        std_dev1 = base_params.get('std_dev1', std_dev_to_use)
+                        std_dev2 = base_params.get('std_dev2', std_dev_to_use)
+                        
                         result = SampleSizeCalculator.calculate_continuous_two_groups(
                             base_params['mean1'], base_params['mean2'],
-                            base_params['std_dev1'], base_params['std_dev2'], 
+                            std_dev1, std_dev2, 
                             base_params['alpha'], power
                         )
                         power_sample_sizes.append(result['total'])
@@ -797,9 +812,14 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
             try:
                 if study_design == "Two independent study groups":
                     if outcome_type == "Continuous (means)":
+                        # Get standard deviations with fallback
+                        std_dev_to_use = base_params.get('pooled_std', base_params.get('std_dev', 2.0))
+                        std_dev1 = base_params.get('std_dev1', std_dev_to_use)
+                        std_dev2 = base_params.get('std_dev2', std_dev_to_use)
+                        
                         result = SampleSizeCalculator.calculate_continuous_two_groups(
                             base_params['mean1'], base_params['mean2'],
-                            base_params['std_dev1'], base_params['std_dev2'],
+                            std_dev1, std_dev2,
                             alpha, base_params['power']
                         )
                         alpha_sample_sizes.append(result['total'])
@@ -857,9 +877,14 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
             try:
                 if study_design == "Two independent study groups":
                     if outcome_type == "Continuous (means)":
+                        # Get standard deviations with fallback
+                        std_dev_to_use = base_params.get('pooled_std', base_params.get('std_dev', 2.0))
+                        std_dev1 = base_params.get('std_dev1', std_dev_to_use)
+                        std_dev2 = base_params.get('std_dev2', std_dev_to_use)
+                        
                         result = SampleSizeCalculator.calculate_continuous_two_groups(
                             base_params['mean1'], base_params['mean2'],
-                            base_params['std_dev1'], base_params['std_dev2'],
+                            std_dev1, std_dev2,
                             base_params['alpha'], power
                         )
                         power_sample_sizes_comp.append(result['total'])
@@ -1228,6 +1253,17 @@ def display_professional_results_tables(results, study_design, outcome_type, par
     
     st.markdown(f'<div class="results-title">{title}</div>', unsafe_allow_html=True)
     
+    # Dropout rate warning if applicable
+    dropout_rate = params.get('dropout_rate', 0.0)
+    if not is_posthoc and dropout_rate > 0:
+        st.markdown(f"""
+        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin: 1rem 0; border-radius: 0 10px 10px 0;">
+        <strong>📊 Dropout Adjustment Applied:</strong><br>
+        Sample sizes below include {dropout_rate*100:.0f}% expected dropout rate. 
+        The final sample size accounts for participants who may withdraw during the study.
+        </div>
+        """, unsafe_allow_html=True)
+    
     # Main results display
     col1, col2 = st.columns(2)
     
@@ -1241,16 +1277,34 @@ def display_professional_results_tables(results, study_design, outcome_type, par
             
             # Create sample size dataframe
             if study_design == "Two independent study groups":
-                sample_df = pd.DataFrame({
-                    "Group": ["Group 1", "Group 2", "**Total**"],
-                    "Size": [results['n1'], results['n2'], f"**{results['total']}**"]
-                })
+                # Show both unadjusted and adjusted sample sizes if dropout applied
+                if dropout_rate > 0:
+                    unadj_n1 = math.ceil(results['n1'] * (1 - dropout_rate))
+                    unadj_n2 = math.ceil(results['n2'] * (1 - dropout_rate))
+                    unadj_total = unadj_n1 + unadj_n2
+                    sample_df = pd.DataFrame({
+                        "Group": ["Group 1", "Group 2", "**Total**", "", "Without dropout:", "Group 1 (base)", "Group 2 (base)", "**Total (base)**"],
+                        "Size": [results['n1'], results['n2'], f"**{results['total']}**", "", "", unadj_n1, unadj_n2, f"**{unadj_total}**"]
+                    })
+                else:
+                    sample_df = pd.DataFrame({
+                        "Group": ["Group 1", "Group 2", "**Total**"],
+                        "Size": [results['n1'], results['n2'], f"**{results['total']}**"]
+                    })
                 st.markdown(f'<div class="metric-card"><div class="metric-value">{results["total"]}</div><div class="metric-label">Total Sample Size</div></div>', unsafe_allow_html=True)
             else:
-                sample_df = pd.DataFrame({
-                    "Group": ["Study Group", "**Total**"],
-                    "Size": [results['n'], f"**{results['n']}**"]
-                })
+                # Show both unadjusted and adjusted for one-group studies
+                if dropout_rate > 0:
+                    unadj_n = math.ceil(results['n'] * (1 - dropout_rate))
+                    sample_df = pd.DataFrame({
+                        "Group": ["Study Group", "**Total**", "", "Without dropout:", "Study Group (base)", "**Total (base)**"],
+                        "Size": [results['n'], f"**{results['n']}**", "", "", unadj_n, f"**{unadj_n}**"]
+                    })
+                else:
+                    sample_df = pd.DataFrame({
+                        "Group": ["Study Group", "**Total**"],
+                        "Size": [results['n'], f"**{results['n']}**"]
+                    })
                 st.markdown(f'<div class="metric-card"><div class="metric-value">{results["n"]}</div><div class="metric-label">Required Sample Size</div></div>', unsafe_allow_html=True)
             
             st.dataframe(
@@ -1277,10 +1331,20 @@ def display_professional_results_tables(results, study_design, outcome_type, par
                     })
                 else:
                     std_display = params.get('pooled_std', params.get('std_dev', 'N/A'))
+                    param_data = [
+                        ["Mean, group 1", params['mean1']], 
+                        ["Mean, group 2", params['mean2']], 
+                        ["Pooled standard deviation", std_display],
+                        ["Alpha", params['alpha']], 
+                        ["Beta", round(1-params['power'], 2)], 
+                        ["Power", params['power']]
+                    ]
+                    if dropout_rate > 0:
+                        param_data.append(["Dropout rate", f"{dropout_rate*100:.0f}%"])
+                    
                     param_df = pd.DataFrame({
-                        "Parameter": ["Mean, group 1", "Mean, group 2", "Pooled standard deviation", "Alpha", "Beta", "Power"],
-                        "Value": [params['mean1'], params['mean2'], std_display, 
-                                 params['alpha'], round(1-params['power'], 2), params['power']]
+                        "Parameter": [item[0] for item in param_data],
+                        "Value": [item[1] for item in param_data]
                     })
             else:
                 if is_posthoc:
@@ -1290,10 +1354,19 @@ def display_professional_results_tables(results, study_design, outcome_type, par
                                  params['alpha'], f"{power_val:.1f}%"]
                     })
                 else:
+                    param_data = [
+                        ["Proportion, group 1", f"{params['p1']:.2f}"], 
+                        ["Proportion, group 2", f"{params['p2']:.2f}"],
+                        ["Alpha", params['alpha']], 
+                        ["Beta", round(1-params['power'], 2)], 
+                        ["Power", params['power']]
+                    ]
+                    if dropout_rate > 0:
+                        param_data.append(["Dropout rate", f"{dropout_rate*100:.0f}%"])
+                    
                     param_df = pd.DataFrame({
-                        "Parameter": ["Proportion, group 1", "Proportion, group 2", "Alpha", "Beta", "Power"],
-                        "Value": [f"{params['p1']:.2f}", f"{params['p2']:.2f}", 
-                                 params['alpha'], round(1-params['power'], 2), params['power']]
+                        "Parameter": [item[0] for item in param_data],
+                        "Value": [item[1] for item in param_data]
                     })
         else:
             if outcome_type == "Continuous (means)":
@@ -1304,10 +1377,20 @@ def display_professional_results_tables(results, study_design, outcome_type, par
                                  params['alpha'], f"{power_val:.1f}%"]
                     })
                 else:
+                    param_data = [
+                        ["Mean, sample", params['sample_mean']], 
+                        ["Mean, population", params['population_mean']], 
+                        ["Standard deviation", params['std_dev']],
+                        ["Alpha", params['alpha']], 
+                        ["Beta", round(1-params['power'], 2)], 
+                        ["Power", params['power']]
+                    ]
+                    if dropout_rate > 0:
+                        param_data.append(["Dropout rate", f"{dropout_rate*100:.0f}%"])
+                    
                     param_df = pd.DataFrame({
-                        "Parameter": ["Mean, sample", "Mean, population", "Standard deviation", "Alpha", "Beta", "Power"],
-                        "Value": [params['sample_mean'], params['population_mean'], params['std_dev'],
-                                 params['alpha'], round(1-params['power'], 2), params['power']]
+                        "Parameter": [item[0] for item in param_data],
+                        "Value": [item[1] for item in param_data]
                     })
             else:
                 if is_posthoc:
@@ -1317,10 +1400,19 @@ def display_professional_results_tables(results, study_design, outcome_type, par
                                  params['alpha'], f"{power_val:.1f}%"]
                     })
                 else:
+                    param_data = [
+                        ["Proportion, population", f"{params['population_prop']:.0%}"], 
+                        ["Proportion, study group", f"{params['sample_prop']:.0%}"],
+                        ["Alpha", params['alpha']], 
+                        ["Beta", round(1-params['power'], 2)], 
+                        ["Power", params['power']]
+                    ]
+                    if dropout_rate > 0:
+                        param_data.append(["Dropout rate", f"{dropout_rate*100:.0f}%"])
+                    
                     param_df = pd.DataFrame({
-                        "Parameter": ["Proportion, population", "Proportion, study group", "Alpha", "Beta", "Power"],
-                        "Value": [f"{params['population_prop']:.0%}", f"{params['sample_prop']:.0%}",
-                                 params['alpha'], round(1-params['power'], 2), params['power']]
+                        "Parameter": [item[0] for item in param_data],
+                        "Value": [item[1] for item in param_data]
                     })
         
         # Display parameters table
@@ -2173,6 +2265,119 @@ def main():
                             )
                             
                             st.plotly_chart(fig1, use_container_width=True)
+                    
+                    else:  # One group vs population post-hoc
+                        if outcome_type == "Dichotomous (yes/no)":
+                            # Power vs effect size for one proportion
+                            p0_base = st.session_state.posthoc_params.get('population_prop', 0.25)
+                            effect_sizes = np.linspace(0.05, 0.4, 30)
+                            powers = []
+                            
+                            n = st.session_state.posthoc_params.get('n', 60)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for es in effect_sizes:
+                                p1_test = p0_base + es
+                                if p1_test <= 0.99:
+                                    try:
+                                        power_result = PostHocPowerAnalyzer.calculate_power_one_proportion(
+                                            n, p1_test, p0_base, alpha, True
+                                        )
+                                        powers.append(power_result['power'] * 100)
+                                    except:
+                                        powers.append(0)
+                                else:
+                                    powers.append(np.nan)
+                            
+                            fig1 = go.Figure()
+                            fig1.add_trace(go.Scatter(
+                                x=effect_sizes, y=powers,
+                                mode='lines+markers',
+                                name='Power vs Effect Size',
+                                line=dict(color='#2E86AB', width=4),
+                                marker=dict(size=8)
+                            ))
+                            
+                            # Add marker for current study
+                            current_effect = st.session_state.posthoc_results.get('effect_size', 0)
+                            current_power = st.session_state.posthoc_results.get('power_percent', 0)
+                            
+                            fig1.add_trace(go.Scatter(
+                                x=[current_effect],
+                                y=[current_power],
+                                mode='markers',
+                                name='Your Study',
+                                marker=dict(size=15, color='red', symbol='star',
+                                           line=dict(width=2, color='white'))
+                            ))
+                            
+                            fig1.add_hline(y=80, line_dash="dash", line_color="green", 
+                                           annotation_text="80% Power Threshold")
+                            
+                            fig1.update_layout(
+                                title="Statistical Power vs Effect Size",
+                                xaxis_title="Effect Size (Absolute Difference in Proportions)",
+                                yaxis_title="Statistical Power (%)",
+                                height=500,
+                                yaxis=dict(range=[0, 100])
+                            )
+                            
+                            st.plotly_chart(fig1, use_container_width=True)
+                            
+                        elif outcome_type == "Continuous (means)":
+                            # Power vs effect size for one-sample continuous
+                            mean_pop = st.session_state.posthoc_params.get('population_mean', 10)
+                            std_dev = st.session_state.posthoc_params.get('std_dev', 2)
+                            effect_sizes = np.linspace(0.2, 2.0, 30)
+                            powers = []
+                            
+                            n = st.session_state.posthoc_params.get('n', 30)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for es in effect_sizes:
+                                mean_sample_test = mean_pop + es * std_dev
+                                try:
+                                    power_result = PostHocPowerAnalyzer.calculate_power_one_mean(
+                                        n, mean_sample_test, mean_pop, std_dev, alpha, True
+                                    )
+                                    powers.append(power_result['power'] * 100)
+                                except:
+                                    powers.append(0)
+                            
+                            fig1 = go.Figure()
+                            fig1.add_trace(go.Scatter(
+                                x=effect_sizes, y=powers,
+                                mode='lines+markers',
+                                name='Power vs Effect Size',
+                                line=dict(color='#2E86AB', width=4),
+                                marker=dict(size=8)
+                            ))
+                            
+                            # Add marker for current study
+                            current_effect = st.session_state.posthoc_results.get('effect_size', 0)
+                            current_power = st.session_state.posthoc_results.get('power_percent', 0)
+                            
+                            fig1.add_trace(go.Scatter(
+                                x=[current_effect],
+                                y=[current_power],
+                                mode='markers',
+                                name='Your Study',
+                                marker=dict(size=15, color='red', symbol='star',
+                                           line=dict(width=2, color='white'))
+                            ))
+                            
+                            fig1.add_hline(y=80, line_dash="dash", line_color="green", 
+                                           annotation_text="80% Power Threshold")
+                            
+                            fig1.update_layout(
+                                title="Statistical Power vs Effect Size (Cohen's d)",
+                                xaxis_title="Effect Size (Cohen's d)",
+                                yaxis_title="Statistical Power (%)",
+                                height=500,
+                                yaxis=dict(range=[0, 100])
+                            )
+                            
+                            st.plotly_chart(fig1, use_container_width=True)
                 
                 with viz_tab2:
                     # Power vs Sample Size curves
@@ -2240,6 +2445,75 @@ def main():
                         fig2.update_layout(
                             title="Statistical Power vs Total Sample Size",
                             xaxis_title="Total Sample Size",
+                            yaxis_title="Statistical Power (%)",
+                            height=500,
+                            yaxis=dict(range=[0, 100])
+                        )
+                        
+                        st.plotly_chart(fig2, use_container_width=True)
+                    
+                    else:  # One group vs population
+                        sample_sizes = np.arange(10, 200, 5)
+                        powers = []
+                        
+                        if outcome_type == "Dichotomous (yes/no)":
+                            sample_prop = st.session_state.posthoc_params.get('sample_prop', 0.18)
+                            pop_prop = st.session_state.posthoc_params.get('population_prop', 0.25)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for n in sample_sizes:
+                                try:
+                                    power_result = PostHocPowerAnalyzer.calculate_power_one_proportion(
+                                        n, sample_prop, pop_prop, alpha, True
+                                    )
+                                    powers.append(power_result['power'] * 100)
+                                except:
+                                    powers.append(0)
+                                    
+                        else:  # Continuous
+                            sample_mean = st.session_state.posthoc_params.get('sample_mean', 11.5)
+                            pop_mean = st.session_state.posthoc_params.get('population_mean', 10)
+                            std_dev = st.session_state.posthoc_params.get('std_dev', 2)
+                            alpha = st.session_state.posthoc_params.get('alpha', 0.05)
+                            
+                            for n in sample_sizes:
+                                try:
+                                    power_result = PostHocPowerAnalyzer.calculate_power_one_mean(
+                                        n, sample_mean, pop_mean, std_dev, alpha, True
+                                    )
+                                    powers.append(power_result['power'] * 100)
+                                except:
+                                    powers.append(0)
+                        
+                        fig2 = go.Figure()
+                        fig2.add_trace(go.Scatter(
+                            x=sample_sizes,
+                            y=powers,
+                            mode='lines+markers',
+                            name='Power vs Sample Size',
+                            line=dict(color='#A23B72', width=4),
+                            marker=dict(size=6)
+                        ))
+                        
+                        # Add marker for current study
+                        current_n = st.session_state.posthoc_params.get('n', 60)
+                        current_power = st.session_state.posthoc_results.get('power_percent', 0)
+                        
+                        fig2.add_trace(go.Scatter(
+                            x=[current_n],
+                            y=[current_power],
+                            mode='markers',
+                            name='Your Study',
+                            marker=dict(size=15, color='red', symbol='star',
+                                       line=dict(width=2, color='white'))
+                        ))
+                        
+                        fig2.add_hline(y=80, line_dash="dash", line_color="green", 
+                                       annotation_text="80% Power Threshold")
+                        
+                        fig2.update_layout(
+                            title="Statistical Power vs Sample Size",
+                            xaxis_title="Sample Size",
                             yaxis_title="Statistical Power (%)",
                             height=500,
                             yaxis=dict(range=[0, 100])
