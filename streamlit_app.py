@@ -1130,34 +1130,6 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
                 st.latex(r'''\delta = \frac{|\bar{x} - \mu_0|}{s/\sqrt{n}}''')
                 st.latex(r'''df = n - 1''')
                 
-                if all(key in params for key in ['n', 'sample_mean', 'population_mean', 'std_dev', 'alpha']):
-                    st.markdown("#### **Parameter Substitution:**")
-
-                    n = params['n']
-                    sample_mean = params['sample_mean']
-                    pop_mean = params['population_mean']
-                    std_dev = params['std_dev']
-                    alpha = params['alpha']
-
-                    df = n - 1
-                    se = std_dev / math.sqrt(n)
-                    delta = abs(sample_mean - pop_mean) / se
-                    t_alpha = stats.t.ppf(1 - alpha / 2, df)
-                    power = 1 - stats.nct.cdf(t_alpha, df, delta)
-
-                    st.markdown(f"""
-                    **Given Parameters:**
-                    - n = {n}
-                    - x̄ = {sample_mean:.1f} (observed sample mean)
-                    - μ₀ = {pop_mean:.1f} (population mean)
-                    - s = {std_dev:.1f} (standard deviation)
-                    - α = {alpha:.2f}
-                    """)
-
-                    st.latex(f'''\\delta = \\frac{{|{sample_mean:.1f} - {pop_mean:.1f}|}}{{{std_dev:.1f}/\\sqrt{{{n}}}}} = \\frac{{{abs(sample_mean - pop_mean):.1f}}}{{{se:.3f}}} = {delta:.3f}''')
-
-                    st.latex(f'''Power = 1 - T_{{{df},{delta:.3f}}}({t_alpha:.3f}) = {power:.3f} = {power*100:.1f}\\%''')
-                
         else:  # Dichotomous one group  
             if not is_posthoc:
                 st.markdown("#### **One-Sample Proportion Test Sample Size Formula:**")
@@ -1298,7 +1270,6 @@ def display_professional_results_tables(results, study_design, outcome_type, par
         if study_design == "Two independent study groups":
             if outcome_type == "Continuous (means)":
                 if is_posthoc:
-                    power_val = results.get('power_percent', results.get('power', 0) * 100)
                     param_df = pd.DataFrame({
                         "Parameter": ["Sample size, group 1", "Sample size, group 2", "Mean, group 1", "Mean, group 2", "Standard deviation", "Alpha", "Power"],
                         "Value": [params['n1'], params['n2'], params['mean1'], params['mean2'], params['std_dev'], 
@@ -1313,7 +1284,6 @@ def display_professional_results_tables(results, study_design, outcome_type, par
                     })
             else:
                 if is_posthoc:
-                    power_val = results.get('power_percent', results.get('power', 0) * 100)
                     param_df = pd.DataFrame({
                         "Parameter": ["Sample size, group 1", "Sample size, group 2", "Proportion, group 1", "Proportion, group 2", "Alpha", "Power"],
                         "Value": [params['n1'], params['n2'], f"{params['p1']:.2f}", f"{params['p2']:.2f}", 
@@ -1328,7 +1298,6 @@ def display_professional_results_tables(results, study_design, outcome_type, par
         else:
             if outcome_type == "Continuous (means)":
                 if is_posthoc:
-                    power_val = results.get('power_percent', results.get('power', 0) * 100)
                     param_df = pd.DataFrame({
                         "Parameter": ["Sample size", "Mean, sample", "Mean, population", "Standard deviation", "Alpha", "Power"],
                         "Value": [params['n'], params['sample_mean'], params['population_mean'], params['std_dev'],
@@ -1342,7 +1311,6 @@ def display_professional_results_tables(results, study_design, outcome_type, par
                     })
             else:
                 if is_posthoc:
-                    power_val = results.get('power_percent', results.get('power', 0) * 100)
                     param_df = pd.DataFrame({
                         "Parameter": ["Sample size", "Proportion, population", "Proportion, study group", "Alpha", "Power"],
                         "Value": [params['n'], f"{params['population_prop']:.0%}", f"{params['sample_prop']:.0%}",
@@ -2071,8 +2039,8 @@ def main():
         with posthoc_tab2:
             if 'posthoc_params' in st.session_state:
                 display_latex_formula_detailed(
-                    st.session_state.posthoc_study_design,
-                    st.session_state.posthoc_outcome_type,
+                    study_design,
+                    outcome_type,
                     st.session_state.posthoc_params,
                     is_posthoc=True
                 )
@@ -2326,25 +2294,16 @@ def main():
                                 )
                                 req_sample = req_result['total']
                             else:
-                                if 'std_dev1' in st.session_state.posthoc_params and 'std_dev2' in st.session_state.posthoc_params:
-                                    std_dev1_req = st.session_state.posthoc_params['std_dev1']
-                                    std_dev2_req = st.session_state.posthoc_params['std_dev2']
-                                else: # Fallback to pooled SD if individual SDs are not available
-                                    std_dev1_req = st.session_state.posthoc_params.get('std_dev', 2)
-                                    std_dev2_req = st.session_state.posthoc_params.get('std_dev', 2)
-
                                 req_result = SampleSizeCalculator.calculate_continuous_two_groups(
                                     st.session_state.posthoc_params.get('mean1', 10),
                                     st.session_state.posthoc_params.get('mean2', 12),
-                                    std_dev1_req,
-                                    std_dev2_req,
+                                    st.session_state.posthoc_params.get('std_dev', 2),
+                                    st.session_state.posthoc_params.get('std_dev', 2),
                                     st.session_state.posthoc_params.get('alpha', 0.05),
                                     0.80
                                 )
                                 req_sample = req_result['total']
                                 
-                            current_n1 = st.session_state.posthoc_params.get('n1', 0)
-                            current_n2 = st.session_state.posthoc_params.get('n2', 0)
                             st.markdown(f"""
                             **To achieve 80% power with the same effect size:**
                             - Required total sample size: **{req_sample}** subjects
@@ -2400,7 +2359,7 @@ def main():
             
             **Two-Sample T-Test (Continuous)**
             """)
-            st.latex(r'''n = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot 2\sigma^2}{(\mu_1 - \mu_2)^2}''')
+            st.latex(r'''n_1 = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 (\sigma_1^2 + \sigma_2^2/k)}{(\mu_1 - \mu_2)^2}''')
             
             st.markdown("**Two-Proportion Test (Dichotomous)**")
             st.latex(r'''n = \frac{[z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(1 + \frac{1}{k})} + z_{1-\beta}\sqrt{p_1q_1 + \frac{p_2q_2}{k}}]^2}{(p_1 - p_2)^2}''')
@@ -2468,4 +2427,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
