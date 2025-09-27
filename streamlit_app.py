@@ -980,7 +980,7 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
         st.markdown(
             """
             <div class="visualization-container">
-                <h3>🧮 <b### Sample Size Formula & Parameter Substitution</b></h3>
+                <h3>🧮 <b>Sample Size Formula & Parameter Substitution</b></h3>
             </div>
             """,
             unsafe_allow_html=True
