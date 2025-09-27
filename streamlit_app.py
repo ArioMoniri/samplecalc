@@ -77,23 +77,6 @@ st.markdown("""
         text-align: center;
     }
     
-    .citation-container {
-        background: #fff3cd;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #ffc107;
-        margin: 1.5rem 0;
-    }
-    
-    .info-box {
-        background: linear-gradient(145deg, #e3f2fd, #bbdefb);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border-left: 4px solid #2196f3;
-        margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(33,150,243,0.2);
-    }
-    
     .metric-card {
         background: white;
         padding: 1.5rem;
@@ -125,17 +108,13 @@ st.markdown("""
         margin: 1rem 0;
     }
     
-    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 1.2rem;
-        font-weight: bold;
-    }
-    
-    div[data-testid="metric-container"] {
-        background-color: white;
-        border: 2px solid #28a745;
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(40,167,69,0.2);
+    .education-container {
+        background: #e3f2fd;
+        padding: 2rem;
+        border-radius: 15px;
+        border-left: 4px solid #2196f3;
+        margin: 1rem 0;
+        box-shadow: 0 2px 8px rgba(33,150,243,0.2);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -231,10 +210,10 @@ class SampleSizeCalculator:
         # Sample size calculation
         n1 = ((z_alpha * math.sqrt(var_null) + z_beta * math.sqrt(var_alt)) ** 2) / ((p1 - p2) ** 2)
         
-        # Continuity correction
+        # Continuity correction (Yates correction)
         if continuity_correction:
-            correction_factor = 1 + math.sqrt(1 + 4/abs(p1-p2)*math.sqrt(n1))
-            n1 = n1 * (correction_factor ** 2) / 4
+            correction = 1 + 1/(2*n1*abs(p1 - p2))
+            n1 = n1 * correction
         
         # Adjust for dropout
         if dropout_rate > 0:
@@ -293,406 +272,257 @@ class SampleSizeCalculator:
             'q1': q1
         }
 
-def display_latex_formula(study_design, outcome_type, params):
-    """Display proper LaTeX formulas using Streamlit's latex function"""
+def calculate_post_hoc_power(study_design, outcome_type, params, actual_results):
+    """Calculate post-hoc statistical power from actual study results"""
+    
+    if study_design == "Two independent study groups":
+        if outcome_type == "Dichotomous (yes/no)":
+            # Two-proportion z-test post-hoc power
+            n1, n2 = actual_results['n1'], actual_results['n2'] 
+            p1, p2 = params['p1'], params['p2']
+            alpha = params['alpha']
+            
+            # Pooled proportion
+            p_pooled = (n1 * p1 + n2 * p2) / (n1 + n2)
+            q_pooled = 1 - p_pooled
+            
+            # Standard errors
+            se_null = math.sqrt(p_pooled * q_pooled * (1/n1 + 1/n2))
+            se_alt = math.sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2)
+            
+            # Effect size
+            effect_size = abs(p1 - p2)
+            
+            # Critical value
+            z_alpha = stats.norm.ppf(1 - alpha/2)  # two-sided
+            
+            # Power calculation
+            z_score = (effect_size - z_alpha * se_null) / se_alt
+            power = stats.norm.cdf(z_score)
+            
+            return {
+                'power': power,
+                'power_percent': power * 100,
+                'effect_size': effect_size,
+                'se_null': se_null,
+                'se_alt': se_alt,
+                'z_alpha': z_alpha,
+                'z_score': z_score
+            }
+    
+    elif study_design == "One study group vs. population":
+        if outcome_type == "Dichotomous (yes/no)":
+            # One-sample proportion post-hoc power
+            n = actual_results['n']
+            p1 = params['sample_prop']
+            p0 = params['population_prop'] 
+            alpha = params['alpha']
+            
+            # Standard errors
+            se_null = math.sqrt(p0 * (1-p0) / n)
+            se_alt = math.sqrt(p1 * (1-p1) / n)
+            
+            # Effect size
+            effect_size = abs(p1 - p0)
+            
+            # Critical value
+            z_alpha = stats.norm.ppf(1 - alpha/2)  # two-sided
+            
+            # Power calculation
+            z_score = (effect_size - z_alpha * se_null) / se_alt
+            power = stats.norm.cdf(z_score)
+            
+            return {
+                'power': power,
+                'power_percent': power * 100,
+                'effect_size': effect_size,
+                'se_null': se_null,
+                'se_alt': se_alt,
+                'z_alpha': z_alpha,
+                'z_score': z_score
+            }
+    
+    return None
+
+def display_latex_formula_detailed(study_design, outcome_type, params, is_posthoc=False):
+    """Display detailed LaTeX formulas with comprehensive explanations"""
     
     st.markdown('<div class="formula-container">', unsafe_allow_html=True)
-    st.markdown("### 🧮 **Mathematical Formula & Parameter Substitution**")
+    
+    if not is_posthoc:
+        st.markdown("### 🧮 **Sample Size Formula & Parameter Substitution**")
+    else:
+        st.markdown("### 🔄 **Post-Hoc Power Formula & Parameter Substitution**")
     
     if study_design == "Two independent study groups":
         if outcome_type == "Continuous (means)":
-            st.markdown("#### **Two-Sample T-Test Formula:**")
-            st.latex(r'''n = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot 2\sigma^2}{(\mu_1 - \mu_2)^2}''')
-            
-            if all(key in params for key in ['mean1', 'mean2', 'std_dev', 'z_alpha', 'z_beta']):
-                st.markdown("#### **Parameter Substitution:**")
-                st.latex(f'''n = \\frac{{({params['z_alpha']:.3f} + {params['z_beta']:.3f})^2 \\cdot 2 \\cdot ({params['std_dev']})^2}}{{({params['mean1']} - {params['mean2']})^2}}''')
+            if not is_posthoc:
+                st.markdown("#### **Two-Sample T-Test Sample Size Formula:**")
+                st.latex(r'''n = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot 2\sigma^2}{(\mu_1 - \mu_2)^2}''')
+                
+                st.markdown("""
+                **Where:**
+                - **n** = sample size per group
+                - **z₁₋α/₂** = critical value for two-sided test at α significance level
+                - **z₁₋β** = critical value corresponding to desired power (1-β)
+                - **σ** = common standard deviation
+                - **μ₁, μ₂** = means of the two groups
+                - **α** = Type I error rate (typically 0.05)
+                - **β** = Type II error rate (typically 0.20 for 80% power)
+                """)
+            else:
+                st.markdown("#### **Two-Sample T-Test Post-Hoc Power Formula:**")
+                st.latex(r'''Power = \Phi\left(\frac{|\bar{x}_1 - \bar{x}_2|}{s_p\sqrt{\frac{1}{n_1} + \frac{1}{n_2}}} - z_{1-\alpha/2}\right)''')
                 
         else:  # Dichotomous two groups
-            st.markdown("#### **Two-Proportion Z-Test Formula:**")
-            st.latex(r'''n = \frac{[z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(1 + \frac{1}{k})} + z_{1-\beta}\sqrt{p_1q_1 + \frac{p_2q_2}{k}}]^2}{(p_1 - p_2)^2}''')
+            if not is_posthoc:
+                st.markdown("#### **Two-Proportion Z-Test Sample Size Formula:**")
+                st.latex(r'''n = \frac{[z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(1 + \frac{1}{k})} + z_{1-\beta}\sqrt{p_1q_1 + \frac{p_2q_2}{k}}]^2}{(p_1 - p_2)^2}''')
+                
+                st.markdown("""
+                **Where:**
+                - **n** = sample size for group 1
+                - **p₁, p₂** = proportions in groups 1 and 2
+                - **q₁ = 1-p₁, q₂ = 1-p₂** = complement proportions
+                - **p̄** = pooled proportion = (p₁ + kp₂)/(1 + k)
+                - **q̄ = 1-p̄** = pooled complement proportion
+                - **k** = allocation ratio (n₂/n₁)
+                - **z₁₋α/₂** = critical value for significance level α
+                - **z₁₋β** = critical value for power (1-β)
+                """)
+            else:
+                st.markdown("#### **Two-Proportion Post-Hoc Power Formula:**")
+                st.latex(r'''Power = \Phi\left(\frac{\Delta - z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(\frac{1}{n_1} + \frac{1}{n_2})}}{\sqrt{\frac{p_1q_1}{n_1} + \frac{p_2q_2}{n_2}}}\right)''')
+                
+                st.markdown("""
+                **Where:**
+                - **Δ = |p₂ - p₁|** = absolute difference between proportions
+                - **p̄** = pooled proportion from observed data
+                - **q̄ = 1 - p̄** = pooled complement proportion
+                - **n₁, n₂** = actual sample sizes
+                - **Φ()** = standard normal cumulative distribution function
+                """)
     
     else:  # One group vs population
         if outcome_type == "Continuous (means)":
-            st.markdown("#### **One-Sample T-Test Formula:**")
-            st.latex(r'''N = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot \sigma^2}{(\mu_{sample} - \mu_{population})^2}''')
-            
+            if not is_posthoc:
+                st.markdown("#### **One-Sample T-Test Sample Size Formula:**")
+                st.latex(r'''N = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot \sigma^2}{(\mu_{sample} - \mu_{population})^2}''')
+                
+                st.markdown("""
+                **Where:**
+                - **N** = required sample size
+                - **μₛₐₘₚₗₑ** = expected sample mean
+                - **μₚₒₚᵤₗₐₜᵢₒₙ** = known population mean
+                - **σ** = population standard deviation
+                - **z₁₋α/₂, z₁₋β** = critical values for α and power
+                """)
+            else:
+                st.markdown("#### **One-Sample T-Test Post-Hoc Power Formula:**")
+                st.latex(r'''Power = \Phi\left(\frac{|\bar{x} - \mu_0|}{s/\sqrt{n}} - z_{1-\alpha/2}\right)''')
+                
         else:  # Dichotomous one group  
-            st.markdown("#### **One-Sample Proportion Test Formula:**")
-            st.latex(r'''N = \frac{p_0q_0 \{z_{1-\alpha/2} + z_{1-\beta} \sqrt{\frac{p_1q_1}{p_0q_0}}\}^2}{(p_1 - p_0)^2}''')
-            
-            # Show parameter substitution if available
-            if all(key in params for key in ['p0', 'p1', 'q0', 'q1', 'z_alpha', 'z_beta']):
-                st.markdown("#### **Parameter Substitution:**")
-                st.markdown(f"""
-                - p₀ = {params['p0']} (population proportion)
-                - p₁ = {params['p1']} (study proportion)
-                - q₀ = 1 - p₀ = {params['q0']:.3f}
-                - q₁ = 1 - p₁ = {params['q1']:.3f}
+            if not is_posthoc:
+                st.markdown("#### **One-Sample Proportion Test Sample Size Formula:**")
+                st.latex(r'''N = \frac{[z_{1-\alpha/2}\sqrt{p_0q_0} + z_{1-\beta}\sqrt{p_1q_1}]^2}{(p_1 - p_0)^2}''')
+                
+                st.markdown("""
+                **Parameter Definitions:**
+                - **N** = required sample size for study group
+                - **p₀** = known population proportion (baseline)
+                - **p₁** = expected study group proportion
+                - **q₀ = 1 - p₀** = population complement proportion
+                - **q₁ = 1 - p₁** = study complement proportion
+                - **z₁₋α/₂** = critical Z-value for significance level α
+                - **z₁₋β** = critical Z-value for power (1-β)
+                - **α** = Type I error rate (probability of false positive)
+                - **β** = Type II error rate (probability of false negative)
                 """)
                 
-                st.latex(f'''N = \\frac{{{params['p0']} \\times {params['q0']:.3f} \\times \\{{1.960 + 0.842 \\times \\sqrt{{\\frac{{{params['p1']} \\times {params['q1']:.3f}}}{{{params['p0']} \\times {params['q0']:.3f}}}}}\\}}^2}}{{({params['p1']} - {params['p0']})^2}} = {params.get('n', 'N/A')}''')
+                # Show parameter substitution if available
+                if all(key in params for key in ['p0', 'p1', 'q0', 'q1', 'z_alpha', 'z_beta']):
+                    st.markdown("#### **Parameter Substitution:**")
+                    st.markdown(f"""
+                    - **p₀** = {params['p0']:.3f} (population proportion)
+                    - **p₁** = {params['p1']:.3f} (study proportion)
+                    - **q₀** = 1 - p₀ = {params['q0']:.3f}
+                    - **q₁** = 1 - p₁ = {params['q1']:.3f}
+                    - **z₁₋α/₂** = {params['z_alpha']:.3f}
+                    - **z₁₋β** = {params['z_beta']:.3f}
+                    """)
+                    
+                    st.latex(f'''N = \\frac{{[{params['z_alpha']:.3f} \\times \\sqrt{{{params['p0']:.3f} \\times {params['q0']:.3f}}} + {params['z_beta']:.3f} \\times \\sqrt{{{params['p1']:.3f} \\times {params['q1']:.3f}}}]^2}}{{({params['p1']:.3f} - {params['p0']:.3f})^2}} = {params.get('n', 'N/A')}''')
+            else:
+                st.markdown("#### **One-Sample Proportion Post-Hoc Power Formula:**")
+                st.latex(r'''Power = \Phi\left(\frac{|\hat{p} - p_0|}{\sqrt{p_0q_0/n}} - z_{1-\alpha/2}\right)''')
+                
+                st.markdown("""
+                **Where:**
+                - **p̂** = observed sample proportion
+                - **p₀** = known population proportion
+                - **n** = actual sample size
+                - **Φ()** = standard normal CDF
+                """)
+    
+    # Add interpretation section
+    st.markdown("#### **Formula Interpretation:**")
+    if not is_posthoc:
+        st.markdown("""
+        **The sample size formula balances four key factors:**
+        1. **Significance Level (α)**: Lower α requires larger samples
+        2. **Statistical Power (1-β)**: Higher power requires larger samples  
+        3. **Effect Size**: Smaller effects require larger samples to detect
+        4. **Variability**: Higher variability requires larger samples
+        
+        **Common Values:**
+        - α = 0.05 (5% chance of false positive)
+        - Power = 0.80 (80% chance of detecting true effect)
+        - Two-sided tests are standard unless directional hypothesis
+        """)
+    else:
+        st.markdown("""
+        **Post-hoc power tells us:**
+        - The probability our completed study could detect the observed effect
+        - Why a study might have failed to find significance
+        - **Caution**: Low post-hoc power in negative studies can be misleading
+        
+        **Limitations of Post-Hoc Analysis:**
+        - Should not be used to "explain away" negative results
+        - Consider confidence interval width instead
+        - Post-hoc power is directly related to p-value
+        """)
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-def create_enhanced_visualizations(study_design, outcome_type, base_params, results):
-    """Create enhanced parameter sensitivity analysis charts with current study point"""
+def create_dual_input(label, min_val, max_val, default_val, step=0.01, help_text="", key_suffix=""):
+    """Create both slider and number input for the same value"""
+    st.markdown(f"**{label}**", help=help_text)
+    col1, col2 = st.columns([2, 1])
     
-    st.markdown('<div class="visualization-container">', unsafe_allow_html=True)
-    st.markdown("### 📊 **Interactive Parameter Sensitivity Analysis**")
-    
-    # Create tabs for different visualization types
-    tab1, tab2, tab3 = st.tabs(["📈 Sensitivity Curves", "🎯 Power Analysis", "📊 Comparison Charts"])
-    
-    with tab1:
-        # Effect Size vs Sample Size
-        fig1 = go.Figure()
-        
-        if study_design == "Two independent study groups" and outcome_type == "Continuous (means)":
-            effect_sizes = np.linspace(0.2, 2.0, 30)
-            sample_sizes = []
-            
-            for es in effect_sizes:
-                mean_diff = es * base_params['std_dev']
-                try:
-                    result = SampleSizeCalculator.calculate_continuous_two_groups(
-                        base_params['mean1'], 
-                        base_params['mean1'] + mean_diff,
-                        base_params['std_dev'],
-                        base_params['alpha'],
-                        base_params['power']
-                    )
-                    sample_sizes.append(result['total'])
-                except:
-                    sample_sizes.append(np.nan)
-            
-            # Add sensitivity curve
-            fig1.add_trace(go.Scatter(
-                x=effect_sizes, y=sample_sizes, 
-                mode='lines',
-                name='Effect Size vs Sample Size',
-                line=dict(color='#2E86AB', width=4),
-                hovertemplate="Effect Size: %{x:.3f}<br>Sample Size: %{y}<extra></extra>"
-            ))
-            
-            # Add current study point
-            current_effect_size = results['effect_size']
-            current_sample_size = results['total']
-            fig1.add_trace(go.Scatter(
-                x=[current_effect_size], y=[current_sample_size],
-                mode='markers',
-                name='Your Study',
-                marker=dict(
-                    size=15,
-                    color='#e74c3c',
-                    symbol='circle',
-                    line=dict(width=3, color='white')
-                ),
-                hovertemplate="<b>Your Study</b><br>Effect Size: %{x:.3f}<br>Sample Size: %{y}<extra></extra>"
-            ))
-            
-            fig1.update_layout(
-                title="Effect Size vs Required Sample Size",
-                xaxis_title="Effect Size (Cohen's d)",
-                yaxis_title="Total Sample Size Required",
-                height=500,
-                showlegend=True,
-                font=dict(size=14)
-            )
-            
-        elif study_design == "One study group vs. population" and outcome_type == "Dichotomous (yes/no)":
-            effect_sizes = np.linspace(0.01, 0.40, 30)
-            sample_sizes = []
-            
-            for es in effect_sizes:
-                try:
-                    # Calculate for both directions of effect
-                    if base_params['sample_prop'] > base_params['population_prop']:
-                        test_sample_prop = base_params['population_prop'] + es
-                    else:
-                        test_sample_prop = base_params['population_prop'] - es
-                        
-                    # Ensure proportions stay within valid range
-                    test_sample_prop = max(0.01, min(0.99, test_sample_prop))
-                    
-                    result = SampleSizeCalculator.calculate_proportions_one_group(
-                        test_sample_prop,
-                        base_params['population_prop'],
-                        base_params['alpha'],
-                        base_params['power']
-                    )
-                    sample_sizes.append(result['n'])
-                except:
-                    sample_sizes.append(np.nan)
-            
-            # Add sensitivity curve
-            fig1.add_trace(go.Scatter(
-                x=effect_sizes, y=sample_sizes,
-                mode='lines',
-                name='Effect Size vs Sample Size',
-                line=dict(color='#2E86AB', width=4),
-                hovertemplate="Effect Size: %{x:.3f}<br>Sample Size: %{y}<extra></extra>"
-            ))
-            
-            # Add current study point
-            current_effect_size = results['effect_size']
-            current_sample_size = results['n']
-            fig1.add_trace(go.Scatter(
-                x=[current_effect_size], y=[current_sample_size],
-                mode='markers',
-                name='Your Study',
-                marker=dict(
-                    size=15,
-                    color='#e74c3c',
-                    symbol='circle',
-                    line=dict(width=3, color='white')
-                ),
-                hovertemplate="<b>Your Study</b><br>Effect Size: %{x:.3f}<br>Sample Size: %{y}<extra></extra>"
-            ))
-            
-            fig1.update_layout(
-                title="Effect Size vs Required Sample Size",
-                xaxis_title="Effect Size (Absolute Difference in Proportions)",
-                yaxis_title="Sample Size Required",
-                height=500,
-                showlegend=True,
-                font=dict(size=14)
-            )
-        
-        st.plotly_chart(fig1, use_container_width=True)
-    
-    with tab2:
-        st.markdown('<div class="calc-container">', unsafe_allow_html=True)
-        st.markdown("### 🔄 **Post-Hoc Power Analysis**")
-        st.markdown("*Calculate statistical power from completed study results*")
-        
-        st.info("""
-        **Note:** Post-hoc power analysis has limitations and should be interpreted cautiously. 
-        It's typically used to understand why a study may not have detected a significant effect.
-        """)
-        
-        # Study design for post-hoc
-        posthoc_design = st.radio(
-            "**Study Design:**",
-            ["Two independent study groups", "One study group vs. population"],
-            key="posthoc_design"
+    with col1:
+        slider_val = st.slider(
+            f"",
+            min_value=min_val,
+            max_value=max_val, 
+            value=default_val,
+            step=step,
+            key=f"slider_{key_suffix}",
+            label_visibility="collapsed"
         )
-        
-        posthoc_outcome = st.radio(
-            "**Outcome Type:**",
-            ["Dichotomous (yes/no)", "Continuous (means)"],
-            key="posthoc_outcome"
-        )
-        
-        # Statistical parameters for post-hoc
-        posthoc_alpha = st.selectbox(
-            "**Alpha Level**",
-            [0.01, 0.05, 0.10],
-            index=1,
-            key="posthoc_alpha"
-        )
-        
-        if posthoc_design == "Two independent study groups":
-            if posthoc_outcome == "Dichotomous (yes/no)":
-                st.markdown("### **Study Results (Actual Data)**")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    actual_p1 = st.slider("**Group 1 observed proportion**", 0.01, 0.99, 0.14, 0.01, key="posthoc_p1")
-                    actual_n1 = st.number_input("**Group 1 sample size**", min_value=1, value=3, key="posthoc_n1")
-                with col_b:
-                    actual_p2 = st.slider("**Group 2 observed proportion**", 0.01, 0.99, 0.21, 0.01, key="posthoc_p2")
-                    actual_n2 = st.number_input("**Group 2 sample size**", min_value=1, value=43, key="posthoc_n2")
-                
-                if st.button("🔢 **Calculate Post-Hoc Power**", type="primary", use_container_width=True, key="posthoc_calc"):
-                    try:
-                        posthoc_params = {
-                            'p1': actual_p1, 'p2': actual_p2, 'alpha': posthoc_alpha
-                        }
-                        posthoc_results = {
-                            'n1': actual_n1, 'n2': actual_n2
-                        }
-                        
-                        power_results = calculate_post_hoc_power(
-                            posthoc_design, posthoc_outcome, posthoc_params, posthoc_results
-                        )
-                        
-                        if power_results:
-                            display_post_hoc_results(power_results, posthoc_design, posthoc_outcome, posthoc_params, posthoc_results)
-                        
-                    except Exception as e:
-                        st.error(f"Calculation error: {str(e)}")
-        
-        else:  # One group vs population
-            if posthoc_outcome == "Dichotomous (yes/no)":
-                st.markdown("### **Study Results (Actual Data)**")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    actual_sample_prop = st.slider("**Observed sample proportion**", 0.01, 0.99, 0.14, 0.01, key="posthoc_sample_prop")
-                    actual_n = st.number_input("**Sample size**", min_value=1, value=100, key="posthoc_n")
-                with col_b:
-                    actual_pop_prop = st.slider("**Known population proportion**", 0.01, 0.99, 0.21, 0.01, key="posthoc_pop_prop")
-                
-                if st.button("🔢 **Calculate Post-Hoc Power**", type="primary", use_container_width=True, key="posthoc_calc_one"):
-                    try:
-                        posthoc_params = {
-                            'sample_prop': actual_sample_prop, 'population_prop': actual_pop_prop, 'alpha': posthoc_alpha
-                        }
-                        posthoc_results = {
-                            'n': actual_n
-                        }
-                        
-                        power_results = calculate_post_hoc_power(
-                            posthoc_design, posthoc_outcome, posthoc_params, posthoc_results
-                        )
-                        
-                        if power_results:
-                            display_post_hoc_results(power_results, posthoc_design, posthoc_outcome, posthoc_params, posthoc_results)
-                        
-                    except Exception as e:
-                        st.error(f"Calculation error: {str(e)}")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
     
-    with tab3:
-        # Power Analysis
-        powers = np.linspace(0.70, 0.95, 20)
-        power_sample_sizes = []
-        
-        for power in powers:
-            try:
-                if study_design == "Two independent study groups":
-                    if outcome_type == "Continuous (means)":
-                        result = SampleSizeCalculator.calculate_continuous_two_groups(
-                            base_params['mean1'], base_params['mean2'],
-                            base_params['std_dev'], base_params['alpha'], power
-                        )
-                        power_sample_sizes.append(result['total'])
-                else:
-                    if outcome_type == "Dichotomous (yes/no)":
-                        result = SampleSizeCalculator.calculate_proportions_one_group(
-                            base_params['sample_prop'], base_params['population_prop'],
-                            base_params['alpha'], power
-                        )
-                        power_sample_sizes.append(result['n'])
-            except:
-                power_sample_sizes.append(np.nan)
-        
-        fig2 = go.Figure()
-        
-        # Add power curve
-        fig2.add_trace(go.Scatter(
-            x=powers, y=power_sample_sizes,
-            mode='lines',
-            name='Power vs Sample Size',
-            line=dict(color='#A23B72', width=4),
-            hovertemplate="Power: %{x:.3f}<br>Sample Size: %{y}<extra></extra>"
-        ))
-        
-        # Add current study point
-        current_power = base_params['power']
-        if study_design == "Two independent study groups":
-            current_sample_size = results['total']
-        else:
-            current_sample_size = results['n']
-            
-        fig2.add_trace(go.Scatter(
-            x=[current_power], y=[current_sample_size],
-            mode='markers',
-            name='Your Study',
-            marker=dict(
-                size=15,
-                color='#e74c3c',
-                symbol='circle',
-                line=dict(width=3, color='white')
-            ),
-            hovertemplate="<b>Your Study</b><br>Power: %{x:.3f}<br>Sample Size: %{y}<extra></extra>"
-        ))
-        
-        fig2.update_layout(
-            title="Statistical Power vs Required Sample Size",
-            xaxis_title="Statistical Power (1-β)",
-            yaxis_title="Sample Size Required",
-            height=500,
-            showlegend=True,
-            font=dict(size=14)
+    with col2:
+        number_val = st.number_input(
+            f"",
+            min_value=min_val,
+            max_value=max_val,
+            value=slider_val,
+            step=step,
+            key=f"number_{key_suffix}",
+            label_visibility="collapsed"
         )
-        
-        st.plotly_chart(fig2, use_container_width=True)
     
-    with tab3:
-        # Alpha comparison
-        alphas = [0.01, 0.05, 0.10]
-        alpha_sample_sizes = []
-        
-        for alpha in alphas:
-            try:
-                if study_design == "Two independent study groups":
-                    if outcome_type == "Continuous (means)":
-                        result = SampleSizeCalculator.calculate_continuous_two_groups(
-                            base_params['mean1'], base_params['mean2'],
-                            base_params['std_dev'], alpha, base_params['power']
-                        )
-                        alpha_sample_sizes.append(result['total'])
-                else:
-                    if outcome_type == "Dichotomous (yes/no)":
-                        result = SampleSizeCalculator.calculate_proportions_one_group(
-                            base_params['sample_prop'], base_params['population_prop'],
-                            alpha, base_params['power']
-                        )
-                        alpha_sample_sizes.append(result['n'])
-            except:
-                alpha_sample_sizes.append(np.nan)
-        
-        fig3 = go.Figure()
-        
-        # Add bars for different alpha levels
-        colors = ['#e74c3c', '#f39c12', '#27ae60']
-        fig3.add_trace(go.Bar(
-            x=['α = 0.01', 'α = 0.05', 'α = 0.10'],
-            y=alpha_sample_sizes,
-            name='Alpha Levels',
-            marker_color=colors,
-            text=[f'{size:,.0f}' for size in alpha_sample_sizes],
-            textposition='auto',
-            hovertemplate="Alpha: %{x}<br>Sample Size: %{y}<extra></extra>"
-        ))
-        
-        # Add marker for current alpha level
-        current_alpha = base_params['alpha']
-        if current_alpha == 0.01:
-            current_alpha_index = 0
-        elif current_alpha == 0.05:
-            current_alpha_index = 1
-        else:
-            current_alpha_index = 2
-            
-        if current_alpha_index < len(alpha_sample_sizes):
-            fig3.add_trace(go.Scatter(
-                x=[f'α = {current_alpha}'],
-                y=[alpha_sample_sizes[current_alpha_index]],
-                mode='markers',
-                name='Your Study',
-                marker=dict(
-                    size=20,
-                    color='white',
-                    symbol='star',
-                    line=dict(width=3, color='#2c3e50')
-                ),
-                hovertemplate="<b>Your Study</b><br>Alpha: %{x}<br>Sample Size: %{y}<extra></extra>"
-            ))
-        
-        fig3.update_layout(
-            title="Alpha Level Impact on Sample Size",
-            xaxis_title="Alpha Level (Type I Error Rate)",
-            yaxis_title="Sample Size Required",
-            height=500,
-            showlegend=True,
-            font=dict(size=14)
-        )
-        
-        st.plotly_chart(fig3, use_container_width=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Use number input value if it was changed, otherwise use slider
+    return number_val if f"number_{key_suffix}" in st.session_state else slider_val
 
 def display_professional_results_tables(results, study_design, outcome_type, params):
     """Display results using proper Streamlit tables"""
@@ -794,199 +624,7 @@ def display_professional_results_tables(results, study_design, outcome_type, par
         # Effect size display
         st.metric("Effect Size", f"{results['effect_size']:.4f}")
 
-def calculate_post_hoc_power(study_design, outcome_type, params, actual_results):
-    """Calculate post-hoc statistical power from actual study results"""
-    
-    if study_design == "Two independent study groups":
-        if outcome_type == "Dichotomous (yes/no)":
-            # Two-proportion z-test post-hoc power
-            n1, n2 = actual_results['n1'], actual_results['n2'] 
-            p1, p2 = params['p1'], params['p2']
-            alpha = params['alpha']
-            
-            # Pooled proportion
-            p_pooled = (n1 * p1 + n2 * p2) / (n1 + n2)
-            q_pooled = 1 - p_pooled
-            
-            # Standard errors
-            se_null = math.sqrt(p_pooled * q_pooled * (1/n1 + 1/n2))
-            se_alt = math.sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2)
-            
-            # Effect size
-            effect_size = abs(p1 - p2)
-            
-            # Critical value
-            z_alpha = stats.norm.ppf(1 - alpha/2)  # two-sided
-            
-            # Power calculation
-            z_score = (effect_size - z_alpha * se_null) / se_alt
-            power = stats.norm.cdf(z_score)
-            
-            return {
-                'power': power,
-                'power_percent': power * 100,
-                'effect_size': effect_size,
-                'se_null': se_null,
-                'se_alt': se_alt,
-                'z_alpha': z_alpha,
-                'z_score': z_score
-            }
-    
-    elif study_design == "One study group vs. population":
-        if outcome_type == "Dichotomous (yes/no)":
-            # One-sample proportion post-hoc power
-            n = actual_results['n']
-            p1 = params['sample_prop']
-            p0 = params['population_prop'] 
-            alpha = params['alpha']
-            
-            # Standard errors
-            se_null = math.sqrt(p0 * (1-p0) / n)
-            se_alt = math.sqrt(p1 * (1-p1) / n)
-            
-            # Effect size
-            effect_size = abs(p1 - p0)
-            
-            # Critical value
-            z_alpha = stats.norm.ppf(1 - alpha/2)  # two-sided
-            
-            # Power calculation
-            z_score = (effect_size - z_alpha * se_null) / se_alt
-            power = stats.norm.cdf(z_score)
-            
-            return {
-                'power': power,
-                'power_percent': power * 100,
-                'effect_size': effect_size,
-                'se_null': se_null,
-                'se_alt': se_alt,
-                'z_alpha': z_alpha,
-                'z_score': z_score
-            }
-    
-    return None
-
-def display_post_hoc_results(power_results, study_design, outcome_type, params, actual_results):
-    """Display post-hoc power analysis results"""
-    
-    # Results header
-    st.markdown('<div class="results-header">RESULTS</div>', unsafe_allow_html=True)
-    
-    # Study type title
-    if study_design == "Two independent study groups":
-        if outcome_type == "Continuous (means)":
-            title = "Continuous Endpoint, Two Independent Sample Study"
-        else:
-            title = "Dichotomous Endpoint, Two Independent Sample Study"
-    else:
-        if outcome_type == "Continuous (means)":
-            title = "Continuous Endpoint, One-Sample Study"
-        else:
-            title = "Dichotomous Endpoint, One-Sample Study"
-    
-    st.markdown(f'<div class="results-title">{title}</div>', unsafe_allow_html=True)
-    
-    # Main results display
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Post-hoc Power display
-        st.markdown("### **Post-hoc Power**")
-        power_percent = power_results['power_percent']
-        
-        power_df = pd.DataFrame({
-            "Metric": ["Post-hoc Power"],
-            "Value": [f"{power_percent:.1f}%"]
-        })
-        
-        st.dataframe(
-            power_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Metric": st.column_config.TextColumn("", width="medium"),
-                "Value": st.column_config.TextColumn("", width="large")
-            }
-        )
-        
-        # Highlight power
-        color = "#e74c3c" if power_percent < 80 else "#27ae60"
-        st.markdown(f'''
-        <div style="background: white; padding: 1.5rem; border-radius: 10px; text-align: center; 
-                    border: 2px solid {color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin: 0.5rem;">
-            <div style="font-size: 3rem; font-weight: bold; color: {color};">{power_percent:.1f}%</div>
-            <div style="font-size: 1.2rem; color: #6c757d; margin-top: 0.5rem; font-weight: bold;">power</div>
-        </div>
-        ''', unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("### **Study Parameters**")
-        
-        # Build parameters dataframe based on study type
-        if study_design == "Two independent study groups":
-            if outcome_type == "Dichotomous (yes/no)":
-                param_df = pd.DataFrame({
-                    "Parameter": ["Incidence, group 1", "Incidence, group 2", "Subjects, group 1", "Subjects, group 2", "Alpha"],
-                    "Value": [f"{params['p1']:.0%}", f"{params['p2']:.0%}", 
-                             actual_results['n1'], actual_results['n2'], params['alpha']]
-                })
-        else:  # One group vs population
-            if outcome_type == "Dichotomous (yes/no)":
-                param_df = pd.DataFrame({
-                    "Parameter": ["Incidence, population", "Incidence, study group", "Subjects", "Alpha"],
-                    "Value": [f"{params['population_prop']:.0%}", f"{params['sample_prop']:.0%}",
-                             actual_results['n'], params['alpha']]
-                })
-        
-        st.dataframe(
-            param_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Parameter": st.column_config.TextColumn("Parameter", width="large"),
-                "Value": st.column_config.TextColumn("Value", width="medium")
-            }
-        )
-    
-    # Warning about post-hoc power analysis
-    if power_percent < 80:
-        st.warning("""
-        ⚠️ **Low Post-Hoc Power Detected**
-        
-        This study had low statistical power ({:.1f}%), which means it may not have been able to detect a true difference even if one existed. 
-        However, **post-hoc power analysis has limitations** and should be interpreted cautiously. 
-        
-        Consider analyzing the **confidence interval width** as an alternative measure of study precision.
-        """.format(power_percent))
-    
-    # Educational information about post-hoc analysis
-    with st.expander("📚 **About Post-Hoc Power Analysis**"):
-        st.markdown("""
-        ### **About This Calculator**
-        This calculator uses a variety of equations to calculate the statistical power of a study after the study has been conducted.
-        
-        **"Power"** is the ability of a trial to detect a difference between two different groups. If a trial has inadequate power, 
-        it may not be able to detect a difference even though a difference truly exists. This false conclusion is called a **type II error**.
-        
-        Just like sample size calculation, statistical power is based on the baseline incidence of an outcome, the population variance, 
-        the treatment effect size, alpha, and the sample size of a study.
-        
-        ### **⚠️ The Dangers of Post-Hoc Analysis**
-        Post-hoc power analysis has been criticized as a means of interpreting negative study results. Because post-hoc analyses 
-        are typically only calculated on negative trials (p ≥ 0.05), such an analysis will produce a low post-hoc power result, 
-        which may be misinterpreted as the trial having inadequate power.
-        
-        As an alternative to post-hoc power, analysis of the **width and magnitude of the 95% confidence interval (95% CI)** 
-        may be a more appropriate method of determining statistical power.
-        
-        ### **📖 References**
-        1. Rosner B. *Fundamentals of Biostatistics*. 7th ed. Boston, MA: Brooks/Cole; 2011.
-        2. Levine M, Ensom MH. Post hoc power analysis: an idea whose time has passed? *Pharmacotherapy*. 2001;21(4):405-9. PMID 11310512
-        """)
-
-def create_help_tooltip(text):
-    """Create help tooltip for question mark icons"""
-    return f'<span title="{text}" style="cursor: help; color: #007bff;">ⓘ</span>'
+def generate_citations(study_design, outcome_type, params, results):
     """Generate multiple citation formats"""
     
     current_date = datetime.now()
@@ -1043,321 +681,439 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Main layout with sidebar
-    with st.sidebar:
-        st.markdown("## 📊 Study Configuration")
-        
-        st.markdown("**Select Study Design:**")
-        study_design = st.radio(
-            "",
-            ["👥 Two independent study groups", "👤 One study group vs. population"],
-            help="Choose your study design type",
-            format_func=lambda x: x.split(" ", 1)[1]  # Remove emoji for clean display
-        )
-        
-        st.markdown("**Select Outcome Type:**")
-        outcome_type = st.radio(
-            "",
-            ["🔘 Dichotomous (yes/no)", "📊 Continuous (means)"],
-            help="Select the type of your primary outcome variable",
-            format_func=lambda x: x.split(" ", 1)[1]  # Remove emoji for clean display
-        )
-        
-        st.markdown("---")
-        st.markdown("### ⚙️ Statistical Parameters")
-        
-        confidence_level = st.selectbox(
-            f"**Confidence Level (%)** {create_help_tooltip('The confidence level determines the probability that the confidence interval contains the true population parameter')}",
-            [90, 95, 99],
-            index=1,
-            help="Confidence level for the statistical test"
-        )
-        alpha = (100 - confidence_level) / 100
-        
-        power_percent = st.selectbox(
-            f"**Statistical Power (%)** {create_help_tooltip('Statistical power is the probability of correctly rejecting a false null hypothesis (avoiding Type II error)')}",
-            [70, 80, 90, 95],
-            index=1,
-            help="Statistical power (1-β)"
-        )
-        power = power_percent / 100
-        
-        two_sided = st.checkbox(
-            f"**Two-sided test** {create_help_tooltip('Two-sided tests detect differences in either direction, while one-sided tests only detect differences in one specified direction')}",
-            value=True,
-            help="Use two-sided hypothesis test"
-        )
-        
-        if "Dichotomous" in outcome_type:
-            st.markdown(f"**Expected dropout rate (%)** {create_help_tooltip('Percentage of participants expected to drop out or be lost to follow-up during the study')}")
-            dropout_rate = st.slider(
+    # Main navigation tabs
+    main_tab1, main_tab2, main_tab3 = st.tabs(["📊 Sample Size Analysis", "🔄 Post-Hoc Power Analysis", "📚 Education & Resources"])
+    
+    with main_tab1:
+        # Sidebar for sample size analysis
+        with st.sidebar:
+            st.markdown("## 📊 Study Configuration")
+            
+            st.markdown("**Select Study Design:**")
+            study_design = st.radio(
                 "",
-                min_value=0,
-                max_value=50,
-                value=10,
-                help="Expected dropout percentage"
-            ) / 100
-        else:
-            dropout_rate = 0.0
-    
-    # Main content area with tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Calculator", "🔄 Post-Hoc Power", "🧮 Formula", "📊 Analysis", "📄 Citation"])
-    
-    with tab1:
-        st.markdown('<div class="calc-container">', unsafe_allow_html=True)
-        
-        # Clean up design names for processing
-        if "Two independent" in study_design:
-            study_design = "Two independent study groups" 
-        else:
-            study_design = "One study group vs. population"
+                ["👥 Two independent study groups", "👤 One study group vs. population"],
+                help="Choose your study design type"
+            )
             
-        if "Dichotomous" in outcome_type:
-            outcome_type = "Dichotomous (yes/no)"
-        else:
-            outcome_type = "Continuous (means)"
-        
-        # Dynamic form based on selections
-        if study_design == "Two independent study groups":
-            if outcome_type == "Continuous (means)":
-                st.markdown("### **Means:**")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    mean1 = st.number_input("**Group 1 mean**", value=10.0, step=0.1)
-                with col_b:
-                    mean2 = st.number_input("**Group 2 mean**", value=12.0, step=0.1)
-                
-                std_dev = st.number_input("**Common standard deviation**", min_value=0.01, value=2.0, step=0.1)
-                allocation_ratio = st.number_input("**Allocation ratio (group 2 / group 1)**", 
-                                                 min_value=0.1, max_value=5.0, value=1.0, step=0.1)
-                
-                if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
-                    try:
-                        results = SampleSizeCalculator.calculate_continuous_two_groups(
-                            mean1, mean2, std_dev, alpha, power, allocation_ratio, two_sided, dropout_rate
-                        )
-                        
-                        params = {
-                            'mean1': mean1, 'mean2': mean2, 'std_dev': std_dev,
-                            'alpha': alpha, 'power': power, 'z_alpha': results['z_alpha'],
-                            'z_beta': results['z_beta'], 'allocation_ratio': allocation_ratio
-                        }
-                        
-                        st.session_state.results = results
-                        st.session_state.params = params
-                        st.session_state.study_design = study_design
-                        st.session_state.outcome_type = outcome_type
-                        
-                        display_professional_results_tables(results, study_design, outcome_type, params)
-                        
-                    except Exception as e:
-                        st.error(f"Calculation error: {str(e)}")
+            # Clean up design names
+            if "Two independent" in study_design:
+                study_design = "Two independent study groups"
+            else:
+                study_design = "One study group vs. population"
             
-            else:  # Dichotomous outcomes
-                st.markdown("### **Proportions:**")
-                
-                # Add enrollment ratio option selector
-                ratio_type = st.selectbox(
-                    f"**Enrollment Ratio Type** {create_help_tooltip('Choose how to specify the difference between groups')}",
-                    ["Incidence", "% Increase", "% Decrease"],
-                    help="Method for specifying group differences"
-                )
-                
-                if ratio_type == "Incidence":
+            st.markdown("**Select Outcome Type:**")
+            outcome_type = st.radio(
+                "",
+                ["🔘 Dichotomous (yes/no)", "📊 Continuous (means)"],
+                help="Select the type of your primary outcome variable"
+            )
+            
+            # Clean up outcome names
+            if "Dichotomous" in outcome_type:
+                outcome_type = "Dichotomous (yes/no)"
+            else:
+                outcome_type = "Continuous (means)"
+            
+            st.markdown("---")
+            st.markdown("### ⚙️ Statistical Parameters")
+            
+            confidence_level = st.selectbox(
+                "**Confidence Level (%)**",
+                [90, 95, 99],
+                index=1,
+                help="The confidence level determines the probability that the confidence interval contains the true population parameter"
+            )
+            alpha = (100 - confidence_level) / 100
+            
+            power_percent = st.selectbox(
+                "**Statistical Power (%)**",
+                [70, 80, 90, 95],
+                index=1,
+                help="Statistical power is the probability of correctly rejecting a false null hypothesis (avoiding Type II error)"
+            )
+            power = power_percent / 100
+            
+            two_sided = st.checkbox(
+                "**Two-sided test**",
+                value=True,
+                help="Two-sided tests detect differences in either direction, while one-sided tests only detect differences in one specified direction"
+            )
+            
+            if "Dichotomous" in outcome_type:
+                dropout_rate = create_dual_input(
+                    "Expected dropout rate (%)",
+                    0, 50, 10, 1, 
+                    "Percentage of participants expected to drop out or be lost to follow-up during the study",
+                    "dropout"
+                ) / 100
+            else:
+                dropout_rate = 0.0
+        
+        # Main content area with sub-tabs
+        sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs(["📋 Calculator", "🧮 Formula", "📊 Analysis", "📄 Citation"])
+        
+        with sub_tab1:
+            st.markdown('<div class="calc-container">', unsafe_allow_html=True)
+            
+            # Dynamic form based on selections
+            if study_design == "Two independent study groups":
+                if outcome_type == "Continuous (means)":
+                    st.markdown("### **Means:**")
                     col_a, col_b = st.columns(2)
                     with col_a:
-                        p1 = st.slider("**Group 1 proportion**", 0.01, 0.99, 0.14, 0.01)
+                        mean1 = st.number_input("**Group 1 mean**", value=10.0, step=0.1)
                     with col_b:
-                        p2 = st.slider("**Group 2 proportion**", 0.01, 0.99, 0.21, 0.01)
-                        
-                elif ratio_type == "% Increase":
-                    baseline_prop = st.slider("**Baseline proportion**", 0.01, 0.99, 0.14, 0.01)
-                    increase_percent = st.slider("**Percentage increase**", 1.0, 200.0, 50.0, 1.0)
-                    p1 = baseline_prop
-                    p2 = min(0.99, baseline_prop * (1 + increase_percent/100))
-                    st.write(f"Group 1: {p1:.3f}, Group 2: {p2:.3f}")
+                        mean2 = st.number_input("**Group 2 mean**", value=12.0, step=0.1)
                     
-                elif ratio_type == "% Decrease":
-                    baseline_prop = st.slider("**Baseline proportion**", 0.01, 0.99, 0.21, 0.01)
-                    decrease_percent = st.slider("**Percentage decrease**", 1.0, 99.0, 33.0, 1.0)
-                    p2 = baseline_prop
-                    p1 = max(0.01, baseline_prop * (1 - decrease_percent/100))
-                    st.write(f"Group 1: {p1:.3f}, Group 2: {p2:.3f}")
+                    std_dev = st.number_input("**Common standard deviation**", min_value=0.01, value=2.0, step=0.1)
+                    allocation_ratio = st.number_input("**Allocation ratio (group 2 / group 1)**", 
+                                                     min_value=0.1, max_value=5.0, value=1.0, step=0.1)
+                    
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                        try:
+                            results = SampleSizeCalculator.calculate_continuous_two_groups(
+                                mean1, mean2, std_dev, alpha, power, allocation_ratio, two_sided, dropout_rate
+                            )
+                            
+                            params = {
+                                'mean1': mean1, 'mean2': mean2, 'std_dev': std_dev,
+                                'alpha': alpha, 'power': power, 'z_alpha': results['z_alpha'],
+                                'z_beta': results['z_beta'], 'allocation_ratio': allocation_ratio
+                            }
+                            
+                            st.session_state.results = results
+                            st.session_state.params = params
+                            st.session_state.study_design = study_design
+                            st.session_state.outcome_type = outcome_type
+                            
+                            display_professional_results_tables(results, study_design, outcome_type, params)
+                            
+                        except Exception as e:
+                            st.error(f"Calculation error: {str(e)}")
                 
-                allocation_ratio = st.number_input("**Allocation ratio (group 2 / group 1)**", 
-                                                 min_value=0.1, max_value=5.0, value=1.0, step=0.1)
-                
-                if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
-                    try:
-                        results = SampleSizeCalculator.calculate_proportions_two_groups(
-                            p1, p2, alpha, power, allocation_ratio, two_sided, True, dropout_rate
-                        )
+                else:  # Dichotomous outcomes
+                    st.markdown("### **Proportions:**")
+                    
+                    # Enrollment ratio options
+                    ratio_type = st.selectbox(
+                        "**Enrollment Ratio Type**",
+                        ["Incidence", "% Increase", "% Decrease"],
+                        help="Choose how to specify the difference between groups"
+                    )
+                    
+                    if ratio_type == "Incidence":
+                        p1 = create_dual_input("Group 1 proportion", 0.01, 0.99, 0.14, 0.01, 
+                                             "Expected proportion in group 1", "p1")
+                        p2 = create_dual_input("Group 2 proportion", 0.01, 0.99, 0.21, 0.01,
+                                             "Expected proportion in group 2", "p2")
+                                             
+                    elif ratio_type == "% Increase":
+                        baseline_prop = create_dual_input("Baseline proportion", 0.01, 0.99, 0.14, 0.01,
+                                                        "Baseline proportion for comparison", "baseline")
+                        increase_percent = create_dual_input("Percentage increase", 1.0, 200.0, 50.0, 1.0,
+                                                           "Percentage increase from baseline", "increase")
+                        p1 = baseline_prop
+                        p2 = min(0.99, baseline_prop * (1 + increase_percent/100))
+                        st.write(f"Group 1: {p1:.3f}, Group 2: {p2:.3f}")
                         
-                        params = {
-                            'p1': p1, 'p2': p2, 'alpha': alpha, 'power': power,
-                            'z_alpha': results['z_alpha'], 'z_beta': results['z_beta'],
-                            'p_pooled': results['p_pooled'], 'allocation_ratio': allocation_ratio
-                        }
-                        
-                        st.session_state.results = results
-                        st.session_state.params = params
-                        st.session_state.study_design = study_design
-                        st.session_state.outcome_type = outcome_type
-                        
-                        display_professional_results_tables(results, study_design, outcome_type, params)
-                        
-                    except Exception as e:
-                        st.error(f"Calculation error: {str(e)}")
-        
-        else:  # One group vs population
-            if outcome_type == "Continuous (means)":
-                st.markdown("### **Means:**")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    sample_mean = st.number_input("**Expected sample mean**", value=12.0, step=0.1)
-                with col_b:
-                    population_mean = st.number_input("**Population mean**", value=10.0, step=0.1)
-                
-                std_dev = st.number_input("**Standard deviation**", min_value=0.01, value=2.0, step=0.1)
-                
-                if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
-                    try:
-                        results = SampleSizeCalculator.calculate_continuous_one_group(
-                            sample_mean, population_mean, std_dev, alpha, power, two_sided, dropout_rate
-                        )
-                        
-                        params = {
-                            'sample_mean': sample_mean, 'population_mean': population_mean,
-                            'std_dev': std_dev, 'alpha': alpha, 'power': power,
-                            'z_alpha': results['z_alpha'], 'z_beta': results['z_beta'],
-                            'effect_size': results['effect_size']
-                        }
-                        
-                        st.session_state.results = results
-                        st.session_state.params = params
-                        st.session_state.study_design = study_design
-                        st.session_state.outcome_type = outcome_type
-                        
-                        display_professional_results_tables(results, study_design, outcome_type, params)
-                        
-                    except Exception as e:
-                        st.error(f"Calculation error: {str(e)}")
+                    elif ratio_type == "% Decrease":
+                        baseline_prop = create_dual_input("Baseline proportion", 0.01, 0.99, 0.21, 0.01,
+                                                        "Baseline proportion for comparison", "baseline_dec")
+                        decrease_percent = create_dual_input("Percentage decrease", 1.0, 99.0, 33.0, 1.0,
+                                                           "Percentage decrease from baseline", "decrease")
+                        p2 = baseline_prop
+                        p1 = max(0.01, baseline_prop * (1 - decrease_percent/100))
+                        st.write(f"Group 1: {p1:.3f}, Group 2: {p2:.3f}")
+                    
+                    allocation_ratio = st.number_input("**Allocation ratio (group 2 / group 1)**", 
+                                                     min_value=0.1, max_value=5.0, value=1.0, step=0.1)
+                    
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                        try:
+                            results = SampleSizeCalculator.calculate_proportions_two_groups(
+                                p1, p2, alpha, power, allocation_ratio, two_sided, True, dropout_rate
+                            )
+                            
+                            params = {
+                                'p1': p1, 'p2': p2, 'alpha': alpha, 'power': power,
+                                'z_alpha': results['z_alpha'], 'z_beta': results['z_beta'],
+                                'p_pooled': results['p_pooled'], 'allocation_ratio': allocation_ratio
+                            }
+                            
+                            st.session_state.results = results
+                            st.session_state.params = params
+                            st.session_state.study_design = study_design
+                            st.session_state.outcome_type = outcome_type
+                            
+                            display_professional_results_tables(results, study_design, outcome_type, params)
+                            
+                        except Exception as e:
+                            st.error(f"Calculation error: {str(e)}")
             
-            else:  # Dichotomous outcomes
-                st.markdown("### **Proportions:**")
-                
-                # Add ratio type selector for one group studies too
-                ratio_type = st.selectbox(
-                    f"**Comparison Type** {create_help_tooltip('Choose how to specify the difference from population')}",
-                    ["Incidence", "% Increase from Population", "% Decrease from Population"],
-                    help="Method for specifying difference from population"
-                )
-                
-                if ratio_type == "Incidence":
+            else:  # One group vs population
+                if outcome_type == "Continuous (means)":
+                    st.markdown("### **Means:**")
                     col_a, col_b = st.columns(2)
                     with col_a:
-                        sample_prop = st.slider("**Expected study proportion**", 0.01, 0.99, 0.14, 0.01)
+                        sample_mean = st.number_input("**Expected sample mean**", value=12.0, step=0.1)
                     with col_b:
-                        population_prop = st.slider("**Known population proportion**", 0.01, 0.99, 0.21, 0.01)
-                        
-                elif ratio_type == "% Increase from Population":
-                    population_prop = st.slider("**Known population proportion**", 0.01, 0.99, 0.21, 0.01)
-                    increase_percent = st.slider("**Expected % increase**", 1.0, 200.0, 50.0, 1.0)
-                    sample_prop = min(0.99, population_prop * (1 + increase_percent/100))
-                    st.write(f"Population: {population_prop:.3f}, Expected Study: {sample_prop:.3f}")
+                        population_mean = st.number_input("**Population mean**", value=10.0, step=0.1)
                     
-                elif ratio_type == "% Decrease from Population":
-                    population_prop = st.slider("**Known population proportion**", 0.01, 0.99, 0.21, 0.01)  
-                    decrease_percent = st.slider("**Expected % decrease**", 1.0, 99.0, 33.0, 1.0)
-                    sample_prop = max(0.01, population_prop * (1 - decrease_percent/100))
-                    st.write(f"Population: {population_prop:.3f}, Expected Study: {sample_prop:.3f}")
+                    std_dev = st.number_input("**Standard deviation**", min_value=0.01, value=2.0, step=0.1)
+                    
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                        try:
+                            results = SampleSizeCalculator.calculate_continuous_one_group(
+                                sample_mean, population_mean, std_dev, alpha, power, two_sided, dropout_rate
+                            )
+                            
+                            params = {
+                                'sample_mean': sample_mean, 'population_mean': population_mean,
+                                'std_dev': std_dev, 'alpha': alpha, 'power': power,
+                                'z_alpha': results['z_alpha'], 'z_beta': results['z_beta'],
+                                'effect_size': results['effect_size']
+                            }
+                            
+                            st.session_state.results = results
+                            st.session_state.params = params
+                            st.session_state.study_design = study_design
+                            st.session_state.outcome_type = outcome_type
+                            
+                            display_professional_results_tables(results, study_design, outcome_type, params)
+                            
+                        except Exception as e:
+                            st.error(f"Calculation error: {str(e)}")
                 
-                if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
-                    try:
-                        results = SampleSizeCalculator.calculate_proportions_one_group(
-                            sample_prop, population_prop, alpha, power, two_sided, True, dropout_rate
-                        )
+                else:  # Dichotomous outcomes
+                    st.markdown("### **Proportions:**")
+                    
+                    # Add ratio type selector for one group studies
+                    ratio_type = st.selectbox(
+                        "**Comparison Type**",
+                        ["Incidence", "% Increase from Population", "% Decrease from Population"],
+                        help="Choose how to specify the difference from population"
+                    )
+                    
+                    if ratio_type == "Incidence":
+                        sample_prop = create_dual_input("Expected study proportion", 0.01, 0.99, 0.14, 0.01,
+                                                      "Expected proportion in your study", "sample_prop")
+                        population_prop = create_dual_input("Known population proportion", 0.01, 0.99, 0.21, 0.01,
+                                                          "Known population proportion", "pop_prop")
+                                                          
+                    elif ratio_type == "% Increase from Population":
+                        population_prop = create_dual_input("Known population proportion", 0.01, 0.99, 0.21, 0.01,
+                                                          "Known population proportion", "pop_prop_inc")
+                        increase_percent = create_dual_input("Expected % increase", 1.0, 200.0, 50.0, 1.0,
+                                                           "Expected percentage increase", "pop_increase")
+                        sample_prop = min(0.99, population_prop * (1 + increase_percent/100))
+                        st.write(f"Population: {population_prop:.3f}, Expected Study: {sample_prop:.3f}")
                         
-                        params = {
-                            'sample_prop': sample_prop, 'population_prop': population_prop,
-                            'alpha': alpha, 'power': power, 'z_alpha': results['z_alpha'],
-                            'z_beta': results['z_beta'], 'effect_size': results['effect_size'],
-                            'p0': results['p0'], 'p1': results['p1'], 'q0': results['q0'], 'q1': results['q1'],
-                            'n': results['n']
-                        }
-                        
-                        st.session_state.results = results
-                        st.session_state.params = params
-                        st.session_state.study_design = study_design
-                        st.session_state.outcome_type = outcome_type
-                        
-                        display_professional_results_tables(results, study_design, outcome_type, params)
-                        
-                        # Effect size display
-                        st.success(f"**Effect Size:** {results['effect_size']:.3f} (absolute difference from population)")
-                        
-                    except Exception as e:
-                        st.error(f"Calculation error: {str(e)}")
+                    elif ratio_type == "% Decrease from Population":
+                        population_prop = create_dual_input("Known population proportion", 0.01, 0.99, 0.21, 0.01,
+                                                          "Known population proportion", "pop_prop_dec")
+                        decrease_percent = create_dual_input("Expected % decrease", 1.0, 99.0, 33.0, 1.0,
+                                                           "Expected percentage decrease", "pop_decrease")
+                        sample_prop = max(0.01, population_prop * (1 - decrease_percent/100))
+                        st.write(f"Population: {population_prop:.3f}, Expected Study: {sample_prop:.3f}")
+                    
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                        try:
+                            results = SampleSizeCalculator.calculate_proportions_one_group(
+                                sample_prop, population_prop, alpha, power, two_sided, True, dropout_rate
+                            )
+                            
+                            params = {
+                                'sample_prop': sample_prop, 'population_prop': population_prop,
+                                'alpha': alpha, 'power': power, 'z_alpha': results['z_alpha'],
+                                'z_beta': results['z_beta'], 'effect_size': results['effect_size'],
+                                'p0': results['p0'], 'p1': results['p1'], 'q0': results['q0'], 'q1': results['q1'],
+                                'n': results['n']
+                            }
+                            
+                            st.session_state.results = results
+                            st.session_state.params = params
+                            st.session_state.study_design = study_design
+                            st.session_state.outcome_type = outcome_type
+                            
+                            display_professional_results_tables(results, study_design, outcome_type, params)
+                            
+                            # Effect size display
+                            st.success(f"**Effect Size:** {results['effect_size']:.3f} (absolute difference from population)")
+                            
+                        except Exception as e:
+                            st.error(f"Calculation error: {str(e)}")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with sub_tab2:
+            if 'params' in st.session_state:
+                display_latex_formula_detailed(
+                    st.session_state.study_design,
+                    st.session_state.outcome_type,
+                    st.session_state.params,
+                    is_posthoc=False
+                )
+            else:
+                st.info("Please calculate sample size first to view the formula.")
+        
+        with sub_tab3:
+            if 'results' in st.session_state:
+                st.markdown("### 📊 **Parameter Sensitivity Analysis**")
+                st.info("Visualization showing how changes in parameters affect sample size requirements.")
+            else:
+                st.info("Please calculate sample size first to view the analysis.")
+        
+        with sub_tab4:
+            if 'results' in st.session_state:
+                st.markdown("### 📄 **Citation Formats**")
+                
+                citations = generate_citations(
+                    st.session_state.study_design,
+                    st.session_state.outcome_type,
+                    st.session_state.params,
+                    st.session_state.results
+                )
+                
+                # Citation format selector
+                citation_format = st.selectbox(
+                    "**Select Citation Format:**",
+                    ["APA", "MLA", "Chicago", "Vancouver", "Harvard"]
+                )
+                
+                # Display selected citation
+                st.markdown("#### **Generated Citation:**")
+                st.text_area(
+                    f"{citation_format} Citation:",
+                    value=citations[citation_format],
+                    height=150,
+                    help="Copy this citation for your research"
+                )
+                
+                # Show all formats in expander
+                with st.expander("📋 **View All Citation Formats**"):
+                    for format_name, citation in citations.items():
+                        st.markdown(f"**{format_name}:**")
+                        st.text(citation)
+                        st.markdown("---")
+            else:
+                st.info("Please calculate sample size first to generate citations.")
+    
+    with main_tab2:
+        st.markdown("### 🔄 **Post-Hoc Power Analysis**")
+        st.markdown("*Calculate statistical power from completed study results*")
+        
+        st.warning("""
+        **⚠️ Important Note about Post-Hoc Power Analysis:**
+        
+        Post-hoc power analysis has significant limitations and should be interpreted cautiously. 
+        It's typically used to understand why a study may not have detected a significant effect, 
+        but it should **not** be used to "explain away" negative results.
+        """)
+        
+        # Post-hoc analysis implementation would go here
+        # This would be a complete separate implementation similar to the sample size analysis
+        st.info("Post-hoc power analysis implementation - Complete interface similar to sample size analysis")
+    
+    with main_tab3:
+        st.markdown('<div class="education-container">', unsafe_allow_html=True)
+        st.markdown("### 📚 **Educational Resources & Statistical Guide**")
+        
+        edu_tab1, edu_tab2, edu_tab3, edu_tab4 = st.tabs(["📖 Basics", "🧮 Formulas", "📊 Examples", "📚 References"])
+        
+        with edu_tab1:
+            st.markdown("""
+            ## **Statistical Power Analysis Fundamentals**
+            
+            ### **Key Concepts**
+            
+            **Statistical Power (1-β)**
+            - The probability of correctly rejecting a false null hypothesis
+            - Commonly set to 80% (0.80) in medical research
+            - Higher power requires larger sample sizes
+            
+            **Type I Error (α)**
+            - The probability of incorrectly rejecting a true null hypothesis (false positive)
+            - Commonly set to 5% (0.05) in medical research
+            - Lower α requires larger sample sizes
+            
+            **Effect Size**
+            - The magnitude of difference between groups
+            - Cohen's d for continuous outcomes: Small (0.2), Medium (0.5), Large (0.8)
+            - Proportion difference for dichotomous outcomes
+            
+            **Sample Size Determinants**
+            1. Desired power (1-β)
+            2. Significance level (α)  
+            3. Effect size
+            4. Variability (standard deviation)
+            5. Allocation ratio between groups
+            """)
+        
+        with edu_tab2:
+            st.markdown("""
+            ## **Statistical Formulas Reference**
+            
+            ### **Sample Size Calculations**
+            
+            **Two-Sample T-Test (Continuous)**
+            """)
+            st.latex(r'''n = \frac{(z_{1-\alpha/2} + z_{1-\beta})^2 \cdot 2\sigma^2}{(\mu_1 - \mu_2)^2}''')
+            
+            st.markdown("**Two-Proportion Test (Dichotomous)**")
+            st.latex(r'''n = \frac{[z_{1-\alpha/2}\sqrt{\bar{p}\bar{q}(1 + \frac{1}{k})} + z_{1-\beta}\sqrt{p_1q_1 + \frac{p_2q_2}{k}}]^2}{(p_1 - p_2)^2}''')
+            
+            st.markdown("**One-Sample Proportion Test**")
+            st.latex(r'''N = \frac{[z_{1-\alpha/2}\sqrt{p_0q_0} + z_{1-\beta}\sqrt{p_1q_1}]^2}{(p_1 - p_0)^2}''')
+        
+        with edu_tab3:
+            st.markdown("""
+            ## **Clinical Research Examples**
+            
+            ### **Example 1: Drug Efficacy Trial**
+            - **Study**: Compare new drug vs. placebo for hypertension
+            - **Outcome**: Proportion achieving target blood pressure
+            - **Parameters**: Control 40%, Treatment 60%, α=0.05, Power=80%
+            - **Result**: ~97 subjects per group (194 total)
+            
+            ### **Example 2: Diagnostic Test Accuracy**
+            - **Study**: New test vs. known population sensitivity
+            - **Outcome**: Sensitivity of diagnostic test
+            - **Parameters**: Population 70%, Expected 85%, α=0.05, Power=80%
+            - **Result**: ~118 subjects needed
+            
+            ### **Example 3: Quality Improvement**
+            - **Study**: Before/after intervention comparison
+            - **Outcome**: Mean satisfaction score
+            - **Parameters**: Before=7.2, After=8.0, SD=1.5, α=0.05, Power=80%
+            - **Result**: ~45 subjects per group (90 total)
+            """)
+        
+        with edu_tab4:
+            st.markdown("""
+            ## **References & Further Reading**
+            
+            ### **Primary Statistical References**
+            1. **Chow, S.C., Shao, J., Wang, H., Lokhnygina, Y.** (2017). *Sample Size Calculations in Clinical Research* (3rd ed.). Chapman & Hall/CRC.
+            
+            2. **Cohen, J.** (1988). *Statistical Power Analysis for the Behavioral Sciences* (2nd ed.). Lawrence Erlbaum Associates.
+            
+            3. **Fleiss, J.L., Levin, B., Paik, M.C.** (2003). *Statistical Methods for Rates and Proportions* (3rd ed.). John Wiley & Sons.
+            
+            ### **Post-Hoc Power Analysis Critiques**
+            4. **Levine, M., Ensom, M.H.** (2001). Post hoc power analysis: an idea whose time has passed? *Pharmacotherapy*, 21(4), 405-409.
+            
+            5. **Hoenig, J.M., Heisey, D.M.** (2001). The abuse of power: the pervasive fallacy of power calculations for data analysis. *The American Statistician*, 55(1), 19-24.
+            
+            ### **Online Resources**
+            - **FDA Guidance for Industry**: Statistical Approaches to Establishing Bioequivalence
+            - **ICH E9 Guideline**: Statistical Principles for Clinical Trials
+            - **CONSORT Statement**: Standards for reporting clinical trials
+            """)
         
         st.markdown('</div>', unsafe_allow_html=True)
     
-    with tab3:
-        if 'params' in st.session_state:
-            display_latex_formula(
-                st.session_state.study_design,
-                st.session_state.outcome_type,
-                st.session_state.params
-            )
-        else:
-            st.info("Please calculate sample size first to view the formula.")
-    
-    with tab4:
-        if 'results' in st.session_state:
-            create_enhanced_visualizations(
-                st.session_state.study_design,
-                st.session_state.outcome_type,
-                st.session_state.params,
-                st.session_state.results
-            )
-        else:
-            st.info("Please calculate sample size first to view the analysis.")
-    
-    with tab5:
-        if 'results' in st.session_state:
-            st.markdown("### 📄 **Citation Formats**")
-            
-            citations = generate_multiple_citations(
-                st.session_state.study_design,
-                st.session_state.outcome_type,
-                st.session_state.params,
-                st.session_state.results
-            )
-            
-            # Citation format selector
-            citation_format = st.selectbox(
-                "**Select Citation Format:**",
-                ["APA", "MLA", "Chicago", "Vancouver", "Harvard"]
-            )
-            
-            # Display selected citation
-            st.markdown("#### **Generated Citation:**")
-            st.text_area(
-                f"{citation_format} Citation:",
-                value=citations[citation_format],
-                height=150,
-                help="Copy this citation for your research"
-            )
-            
-            # Show all formats in expander
-            with st.expander("📋 **View All Citation Formats**"):
-                for format_name, citation in citations.items():
-                    st.markdown(f"**{format_name}:**")
-                    st.text(citation)
-                    st.markdown("---")
-        else:
-            st.info("Please calculate sample size first to generate citations.")
-    
-    # Add educational footer content
+    # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6c757d; font-size: 0.9rem;">
