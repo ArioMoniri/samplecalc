@@ -1033,18 +1033,14 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
                 st.markdown("#### **Two-Proportion Post-Hoc Power Formula:**")
                 st.latex(r'''Power = \Phi\left\{\frac{\Delta}{\sqrt{\frac{p_1q_1}{n_1} + \frac{p_2q_2}{n_2}}} - z_{1-\alpha/2} \times \frac{\sqrt{\bar{p}\bar{q}(\frac{1}{n_1} + \frac{1}{n_2})}}{\sqrt{\frac{p_1q_1}{n_1} + \frac{p_2q_2}{n_2}}}\right\}''')
                 
-                # Add parameter definitions
+                # Show parameter definitions
                 st.markdown("""
                 **Parameter Definitions:**
-                - **p₁, p₂** = proportion (incidence) of groups #1 and #2
-                - **Δ = |p₂-p₁|** = absolute difference between two proportions  
-                - **n₁** = sample size for group #1
-                - **n₂** = sample size for group #2
-                - **α** = probability of type I error (usually 0.05)
-                - **z** = critical Z value for a given α or β
-                - **K** = ratio of sample size for group #2 to group #1
-                - **Φ()** = function converting a critical Z value to power
                 """)
+                st.latex(r'''q_1 = 1 - p_1''')
+                st.latex(r'''q_2 = 1 - p_2''')
+                st.latex(r'''\bar{p} = \frac{p_1 + kp_2}{1 + k}''')
+                st.latex(r'''\bar{q} = 1 - \bar{p}''')
                 
                 # Show numerical substitution if parameters available
                 if all(key in params for key in ['n1', 'n2', 'p1', 'p2', 'alpha']):
@@ -1058,33 +1054,62 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
                     q2 = 1 - p2
                     alpha = params['alpha']
                     delta = abs(p2 - p1)
+                    k = n2 / n1  # allocation ratio
                     z_alpha = 1.96 if alpha == 0.05 else stats.norm.ppf(1 - alpha/2)
                     
-                    # Calculate pooled proportion
+                    # Calculate pooled proportion from observed data
                     p_pooled = (n1 * p1 + n2 * p2) / (n1 + n2)
                     q_pooled = 1 - p_pooled
                     
                     st.markdown(f"""
-                    **q₁ = 1 - p₁ = {q1:.2f}**  
-                    **q₂ = 1 - p₂ = {q2:.2f}**  
-                    **p̄ = (p₁ + kp₂)/(1 + k) = {p_pooled:.3f}**  
-                    **q̄ = 1 - p̄ = {q_pooled:.3f}**
+                    **p₁, p₂** = proportion (incidence) of groups #1 and #2  
+                    **Δ = |p₂-p₁|** = absolute difference between two proportions  
+                    **n₁** = sample size for group #1  
+                    **n₂** = sample size for group #2  
+                    **α** = probability of type I error (usually 0.05)  
+                    **z** = critical Z value for a given α or β  
+                    **K** = ratio of sample size for group #2 to group #1  
+                    **Φ()** = function converting a critical Z value to power
                     """)
                     
-                    # Show step-by-step calculation
+                    # Show step-by-step numerical calculation
+                    st.latex(f'''q_1 = 1 - p_1 = {q1:.2f}''')
+                    st.latex(f'''q_2 = 1 - p_2 = {q2:.2f}''')
+                    st.latex(f'''\bar{{p}} = \\frac{{p_1 + kp_2}}{{1 + k}} = \\frac{{{p1:.2f} + {k:.0f} \\times {p2:.2f}}}{{1 + {k:.0f}}} = {p_pooled:.3f}''')
+                    st.latex(f'''\bar{{q}} = 1 - \bar{{p}} = {q_pooled:.3f}''')
+                    
+                    # Calculate components step by step
                     numerator = delta
                     denominator = math.sqrt(p1*q1/n1 + p2*q2/n2)
-                    z_score_part1 = numerator / denominator
+                    first_term = numerator / denominator
                     
                     pooled_se = math.sqrt(p_pooled * q_pooled * (1/n1 + 1/n2))
-                    z_score_part2 = z_alpha * pooled_se / denominator
+                    second_term = z_alpha * pooled_se / denominator
                     
-                    final_z = z_score_part1 - z_score_part2
+                    final_z = first_term - second_term
                     power = stats.norm.cdf(final_z)
                     
+                    st.markdown("#### **Step-by-Step Calculation:**")
                     st.latex(f'''Power = \\Phi\\left\\{{\\frac{{{delta:.2f}}}{{\\sqrt{{{p1:.2f} \\times {q1:.2f}/{n1} + {p2:.2f} \\times {q2:.2f}/{n2}}}}} - {z_alpha:.2f} \\times \\frac{{\\sqrt{{{p_pooled:.3f} \\times {q_pooled:.3f}(\\frac{{1}}{{{n1}}} + \\frac{{1}}{{{n2}}})}}}}{{\\sqrt{{{p1:.2f} \\times {q1:.2f}/{n1} + {p2:.2f} \\times {q2:.2f}/{n2}}}}}\\right\\}}''')
                     
+                    st.latex(f'''Power = \\Phi\\left\\{{\\frac{{{delta:.2f}}}{{\\sqrt{{{p1*q1/n1:.3f} + {p2*q2/n2:.3f}}}}} - {z_alpha:.2f} \\times \\frac{{{pooled_se:.3f}}}{{{denominator:.3f}}}\\right\\}}''')
+                    
                     st.latex(f'''Power = \\Phi({final_z:.3f}) = {power:.3f} = {power*100:.1f}\\% \\text{{ power}}''')
+                    
+                    # Add explanation box like in the attachment
+                    st.markdown(f"""
+                    <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                    <strong>Parameter Values:</strong><br>
+                    p₁, p₂ = proportion (incidence) of groups #1 and #2<br>
+                    Δ = |p₂-p₁| = absolute difference between two proportions<br>
+                    n₁ = sample size for group #1<br>
+                    n₂ = sample size for group #2<br>
+                    α = probability of type I error (usually 0.05)<br>
+                    z = critical Z value for a given α or β<br>
+                    K = ratio of sample size for group #2 to group #1<br>
+                    Φ() = function converting a critical Z value to power
+                    </div>
+                    """, unsafe_allow_html=True)
     
     else:  # One group vs population
         if outcome_type == "Continuous (means)":
@@ -1104,6 +1129,13 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
                 st.markdown("#### **One-Sample Proportion Post-Hoc Power Formula:**")
                 st.latex(r'''Power = \Phi\left(\frac{|\hat{p} - p_0| - z_{1-\alpha/2}\sqrt{p_0q_0/n}}{\sqrt{\hat{p}(1-\hat{p})/n}}\right)''')
                 
+                # Show parameter definitions
+                st.markdown("""
+                **Parameter Definitions:**
+                """)
+                st.latex(r'''q_0 = 1 - p_0''')
+                st.latex(r'''q_1 = 1 - p_1''')
+                
                 if all(key in params for key in ['n', 'sample_prop', 'population_prop', 'alpha']):
                     st.markdown("#### **Parameter Substitution:**")
                     
@@ -1122,7 +1154,21 @@ def display_latex_formula_detailed(study_design, outcome_type, params, is_postho
                     z_score = (delta - z_alpha * se_null) / se_alt
                     power = stats.norm.cdf(z_score)
                     
+                    st.markdown(f"""
+                    **p₀** = proportion (incidence) of population  
+                    **p₁** = proportion (incidence) of study group  
+                    **N** = sample size for study group  
+                    **α** = probability of type I error (usually 0.05)  
+                    **β** = probability of type II error (usually 0.2)  
+                    **z** = critical Z value for a given α or β
+                    """)
+                    
+                    st.latex(f'''q_0 = 1 - p_0 = {q0:.3f}''')
+                    st.latex(f'''q_1 = 1 - p_1 = {q_hat:.3f}''')
+                    
                     st.latex(f'''Power = \\Phi\\left(\\frac{{|{p_hat:.2f} - {p0:.2f}| - {z_alpha:.2f}\\sqrt{{{p0:.2f} \\times {q0:.2f}/{n}}}}}{{\\sqrt{{{p_hat:.2f} \\times {q_hat:.2f}/{n}}}}}\\right)''')
+                    
+                    st.latex(f'''Power = \\Phi\\left(\\frac{{{delta:.3f} - {z_alpha:.2f} \\times {se_null:.3f}}}{{{se_alt:.3f}}}\\right)''')
                     
                     st.latex(f'''Power = \\Phi({z_score:.3f}) = {power:.3f} = {power*100:.1f}\\% \\text{{ power}}''')
     
@@ -1459,7 +1505,7 @@ def main():
                     allocation_ratio = create_synchronized_input("Allocation ratio (group 2 / group 1)", 0.1, 5.0, 1.0, 0.1,
                                                                "Ratio of group 2 size to group 1 size", "allocation", "%.1f")
                     
-                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True, key="calc_continuous_two"):
                         try:
                             results = SampleSizeCalculator.calculate_continuous_two_groups(
                                 mean1, mean2, std_dev, alpha, power, allocation_ratio, two_sided, dropout_rate
@@ -1554,7 +1600,7 @@ def main():
                     allocation_ratio = create_synchronized_input("Allocation ratio (group 2 / group 1)", 0.1, 5.0, 1.0, 0.1,
                                                                "Ratio of group 2 size to group 1 size", "allocation_prop", "%.1f")
                     
-                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True, key="calc_dichotomous_two"):
                         try:
                             results = SampleSizeCalculator.calculate_proportions_two_groups(
                                 p1, p2, alpha, power, allocation_ratio, two_sided, True, dropout_rate
@@ -1615,7 +1661,7 @@ def main():
                     std_dev = create_synchronized_input("Standard deviation", 0.01, 100.0, 2.0, 0.1,
                                                       "Population standard deviation", "std_dev_one", "%.1f")
                     
-                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True, key="calc_continuous_one"):
                         try:
                             results = SampleSizeCalculator.calculate_continuous_one_group(
                                 sample_mean, population_mean, std_dev, alpha, power, two_sided, dropout_rate
@@ -1670,7 +1716,7 @@ def main():
                         sample_prop = max(0.01, population_prop * (1 - sample_decrease_pct/100))
                         st.write(f"Population: {population_prop:.3f}, Expected Study: {sample_prop:.3f}")
                     
-                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True):
+                    if st.button("🔢 **Calculate Sample Size**", type="primary", use_container_width=True, key="calc_dichotomous_one"):
                         try:
                             results = SampleSizeCalculator.calculate_proportions_one_group(
                                 sample_prop, population_prop, alpha, power, two_sided, True, dropout_rate
