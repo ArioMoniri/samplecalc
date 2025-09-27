@@ -545,6 +545,341 @@ def create_parameter_sensitivity_plot(study_design, outcome_type, base_params):
             
     return None
 
+def create_enhanced_visualizations(study_design, outcome_type, base_params, results):
+    """Create enhanced parameter sensitivity analysis charts"""
+    
+    st.markdown('<div class="visualization-container">', unsafe_allow_html=True)
+    st.markdown("### 📊 **Interactive Parameter Sensitivity Analysis**")
+    
+    # Create tabs for different visualization types
+    tab1, tab2, tab3 = st.tabs(["📈 Sensitivity Curves", "🎯 Power Analysis", "📊 Comparison Charts"])
+    
+    with tab1:
+        # Effect Size vs Sample Size
+        fig1 = go.Figure()
+        
+        if study_design == "Two independent study groups" and outcome_type == "Continuous (means)":
+            effect_sizes = np.linspace(0.2, 2.0, 30)
+            sample_sizes = []
+            
+            for es in effect_sizes:
+                mean_diff = es * base_params['std_dev']
+                try:
+                    result = SampleSizeCalculator.calculate_continuous_two_groups(
+                        base_params['mean1'], 
+                        base_params['mean1'] + mean_diff,
+                        base_params['std_dev'],
+                        base_params['alpha'],
+                        base_params['power']
+                    )
+                    sample_sizes.append(result['total'])
+                except:
+                    sample_sizes.append(np.nan)
+            
+            fig1.add_trace(go.Scatter(
+                x=effect_sizes, y=sample_sizes, 
+                mode='lines+markers',
+                name='Effect Size vs Sample Size',
+                line=dict(color='#2E86AB', width=4),
+                marker=dict(size=8)
+            ))
+            
+            fig1.update_layout(
+                title="Effect Size vs Required Sample Size",
+                xaxis_title="Effect Size (Cohen's d)",
+                yaxis_title="Total Sample Size Required",
+                height=500,
+                showlegend=True,
+                font=dict(size=14)
+            )
+            
+        elif study_design == "Two independent study groups" and outcome_type == "Dichotomous (yes/no)":
+            # Proportion difference vs sample size
+            p1_base = base_params.get('p1', 0.3)
+            p2_range = np.linspace(0.05, 0.95, 30)
+            sample_sizes = []
+            
+            for p2 in p2_range:
+                if abs(p1_base - p2) > 0.01:
+                    try:
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            p1_base, p2, base_params['alpha'], base_params['power']
+                        )
+                        sample_sizes.append(result['total'])
+                    except:
+                        sample_sizes.append(np.nan)
+                else:
+                    sample_sizes.append(np.nan)
+            
+            fig1.add_trace(go.Scatter(
+                x=np.abs(p2_range - p1_base), y=sample_sizes,
+                mode='lines+markers',
+                name='Effect Size vs Sample Size',
+                line=dict(color='#2E86AB', width=4),
+                marker=dict(size=8)
+            ))
+            
+            fig1.update_layout(
+                title="Effect Size vs Required Sample Size",
+                xaxis_title="Effect Size (Absolute Difference in Proportions)",
+                yaxis_title="Total Sample Size Required",
+                height=500,
+                showlegend=True,
+                font=dict(size=14)
+            )
+            
+        elif study_design == "One study group vs. population" and outcome_type == "Dichotomous (yes/no)":
+            effect_sizes = np.linspace(0.05, 0.40, 30)
+            sample_sizes = []
+            
+            for es in effect_sizes:
+                try:
+                    result = SampleSizeCalculator.calculate_proportions_one_group(
+                        base_params['population_prop'] + es,
+                        base_params['population_prop'],
+                        base_params['alpha'],
+                        base_params['power']
+                    )
+                    sample_sizes.append(result['n'])
+                except:
+                    sample_sizes.append(np.nan)
+            
+            fig1.add_trace(go.Scatter(
+                x=effect_sizes, y=sample_sizes,
+                mode='lines+markers',
+                name='Effect Size vs Sample Size',
+                line=dict(color='#2E86AB', width=4),
+                marker=dict(size=8)
+            ))
+            
+            fig1.update_layout(
+                title="Effect Size vs Required Sample Size",
+                xaxis_title="Effect Size (Absolute Difference in Proportions)",
+                yaxis_title="Sample Size Required",
+                height=500,
+                showlegend=True,
+                font=dict(size=14)
+            )
+            
+        elif study_design == "One study group vs. population" and outcome_type == "Continuous (means)":
+            effect_sizes = np.linspace(0.2, 2.0, 30)
+            sample_sizes = []
+            
+            for es in effect_sizes:
+                mean_diff = es * base_params['std_dev']
+                try:
+                    result = SampleSizeCalculator.calculate_continuous_one_group(
+                        base_params['population_mean'] + mean_diff,
+                        base_params['population_mean'],
+                        base_params['std_dev'],
+                        base_params['alpha'],
+                        base_params['power']
+                    )
+                    sample_sizes.append(result['n'])
+                except:
+                    sample_sizes.append(np.nan)
+            
+            fig1.add_trace(go.Scatter(
+                x=effect_sizes, y=sample_sizes,
+                mode='lines+markers',
+                name='Effect Size vs Sample Size',
+                line=dict(color='#2E86AB', width=4),
+                marker=dict(size=8)
+            ))
+            
+            fig1.update_layout(
+                title="Effect Size vs Required Sample Size",
+                xaxis_title="Effect Size (Cohen's d)",
+                yaxis_title="Sample Size Required",
+                height=500,
+                showlegend=True,
+                font=dict(size=14)
+            )
+        
+        st.plotly_chart(fig1, use_container_width=True)
+    
+    with tab2:
+        # Power Analysis
+        powers = np.linspace(0.70, 0.95, 20)
+        power_sample_sizes = []
+        
+        for power in powers:
+            try:
+                if study_design == "Two independent study groups":
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_two_groups(
+                            base_params['mean1'], base_params['mean2'],
+                            base_params['std_dev'], base_params['alpha'], power
+                        )
+                        power_sample_sizes.append(result['total'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            base_params['p1'], base_params['p2'],
+                            base_params['alpha'], power
+                        )
+                        power_sample_sizes.append(result['total'])
+                else:  # One group vs population
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_one_group(
+                            base_params['sample_mean'], base_params['population_mean'],
+                            base_params['std_dev'], base_params['alpha'], power
+                        )
+                        power_sample_sizes.append(result['n'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_one_group(
+                            base_params['sample_prop'], base_params['population_prop'],
+                            base_params['alpha'], power
+                        )
+                        power_sample_sizes.append(result['n'])
+            except:
+                power_sample_sizes.append(np.nan)
+        
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(
+            x=powers, y=power_sample_sizes,
+            mode='lines+markers',
+            name='Power vs Sample Size',
+            line=dict(color='#A23B72', width=4),
+            marker=dict(size=8)
+        ))
+        
+        # Add horizontal line at current study power
+        current_power = base_params.get('power', 0.8)
+        current_sample = results.get('total', results.get('n', 0))
+        
+        fig2.add_hline(y=current_sample, line_dash="dash", line_color="red", 
+                       annotation_text=f"Your Study (Power={current_power*100:.0f}%)")
+        
+        fig2.update_layout(
+            title="Statistical Power vs Required Sample Size",
+            xaxis_title="Statistical Power (1-β)",
+            yaxis_title="Sample Size Required",
+            height=500,
+            showlegend=True,
+            font=dict(size=14)
+        )
+        
+        st.plotly_chart(fig2, use_container_width=True)
+    
+    with tab3:
+        # Alpha comparison
+        alphas = [0.01, 0.05, 0.10]
+        alpha_sample_sizes = []
+        alpha_labels = ['α = 0.01', 'α = 0.05', 'α = 0.10']
+        
+        for alpha in alphas:
+            try:
+                if study_design == "Two independent study groups":
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_two_groups(
+                            base_params['mean1'], base_params['mean2'],
+                            base_params['std_dev'], alpha, base_params['power']
+                        )
+                        alpha_sample_sizes.append(result['total'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            base_params['p1'], base_params['p2'],
+                            alpha, base_params['power']
+                        )
+                        alpha_sample_sizes.append(result['total'])
+                else:  # One group vs population
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_one_group(
+                            base_params['sample_mean'], base_params['population_mean'],
+                            base_params['std_dev'], alpha, base_params['power']
+                        )
+                        alpha_sample_sizes.append(result['n'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_one_group(
+                            base_params['sample_prop'], base_params['population_prop'],
+                            alpha, base_params['power']
+                        )
+                        alpha_sample_sizes.append(result['n'])
+            except:
+                alpha_sample_sizes.append(np.nan)
+        
+        fig3 = go.Figure()
+        fig3.add_trace(go.Bar(
+            x=alpha_labels,
+            y=alpha_sample_sizes,
+            name='Alpha Levels',
+            marker_color=['#e74c3c', '#f39c12', '#27ae60'],
+            text=[f'{int(size)}' for size in alpha_sample_sizes if not np.isnan(size)],
+            textposition='auto',
+        ))
+        
+        fig3.update_layout(
+            title="Alpha Level Impact on Sample Size",
+            xaxis_title="Alpha Level (Type I Error Rate)",
+            yaxis_title="Sample Size Required",
+            height=500,
+            showlegend=False,
+            font=dict(size=14)
+        )
+        
+        st.plotly_chart(fig3, use_container_width=True)
+        
+        # Additional comparison chart: Power levels
+        st.markdown("#### **Power Level Comparison**")
+        
+        power_levels = [0.70, 0.80, 0.90, 0.95]
+        power_sample_sizes_comp = []
+        power_labels = ['70%', '80%', '90%', '95%']
+        
+        for power in power_levels:
+            try:
+                if study_design == "Two independent study groups":
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_two_groups(
+                            base_params['mean1'], base_params['mean2'],
+                            base_params['std_dev'], base_params['alpha'], power
+                        )
+                        power_sample_sizes_comp.append(result['total'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_two_groups(
+                            base_params['p1'], base_params['p2'],
+                            base_params['alpha'], power
+                        )
+                        power_sample_sizes_comp.append(result['total'])
+                else:  # One group vs population
+                    if outcome_type == "Continuous (means)":
+                        result = SampleSizeCalculator.calculate_continuous_one_group(
+                            base_params['sample_mean'], base_params['population_mean'],
+                            base_params['std_dev'], base_params['alpha'], power
+                        )
+                        power_sample_sizes_comp.append(result['n'])
+                    else:  # Dichotomous
+                        result = SampleSizeCalculator.calculate_proportions_one_group(
+                            base_params['sample_prop'], base_params['population_prop'],
+                            base_params['alpha'], power
+                        )
+                        power_sample_sizes_comp.append(result['n'])
+            except:
+                power_sample_sizes_comp.append(np.nan)
+        
+        fig4 = go.Figure()
+        fig4.add_trace(go.Bar(
+            x=power_labels,
+            y=power_sample_sizes_comp,
+            name='Power Levels',
+            marker_color=['#3498db', '#2ecc71', '#f39c12', '#e74c3c'],
+            text=[f'{int(size)}' for size in power_sample_sizes_comp if not np.isnan(size)],
+            textposition='auto',
+        ))
+        
+        fig4.update_layout(
+            title="Statistical Power Impact on Sample Size",
+            xaxis_title="Statistical Power Level",
+            yaxis_title="Sample Size Required",
+            height=500,
+            showlegend=False,
+            font=dict(size=14)
+        )
+        
+        st.plotly_chart(fig4, use_container_width=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
 def display_formula_with_substitution(study_design, outcome_type, params, results):
     """Display formula with actual parameter substitution like in the examples"""
     
@@ -1254,77 +1589,13 @@ def main():
         
         with sub_tab3:
             if 'results' in st.session_state:
-                st.markdown("### 📊 **Parameter Sensitivity Analysis**")
-                
-                # Create sensitivity analysis plots
-                sensitivity_plot = create_parameter_sensitivity_plot(
+                # Create comprehensive visualizations
+                create_enhanced_visualizations(
                     st.session_state.study_design,
                     st.session_state.outcome_type,
-                    st.session_state.params
+                    st.session_state.params,
+                    st.session_state.results
                 )
-                
-                if sensitivity_plot:
-                    st.plotly_chart(sensitivity_plot, use_container_width=True)
-                
-                # Power curves
-                st.markdown("#### **Power Analysis Curves**")
-                
-                if st.session_state.study_design == "Two independent study groups":
-                    if st.session_state.outcome_type == "Dichotomous (yes/no)":
-                        # Power vs sample size curve
-                        sample_sizes = np.arange(10, 500, 10)
-                        powers = []
-                        
-                        p1 = st.session_state.params.get('p1', 0.2)
-                        p2 = st.session_state.params.get('p2', 0.3)
-                        alpha = st.session_state.params.get('alpha', 0.05)
-                        
-                        for n_per_group in sample_sizes:
-                            try:
-                                power_result = PostHocPowerAnalyzer.calculate_power_two_proportions(
-                                    n_per_group, n_per_group, p1, p2, alpha, True
-                                )
-                                powers.append(power_result['power'] * 100)
-                            except:
-                                powers.append(0)
-                        
-                        fig_power = go.Figure()
-                        fig_power.add_trace(go.Scatter(
-                            x=sample_sizes * 2,  # Total sample size
-                            y=powers,
-                            mode='lines',
-                            name='Statistical Power',
-                            line=dict(width=3, color='#A23B72')
-                        ))
-                        
-                        # Add horizontal line at 80% power
-                        fig_power.add_hline(y=80, line_dash="dash", line_color="red", 
-                                           annotation_text="80% Power Threshold")
-                        
-                        # Mark current study design
-                        current_total = st.session_state.results.get('total', 100)
-                        current_power_result = PostHocPowerAnalyzer.calculate_power_two_proportions(
-                            current_total//2, current_total//2, p1, p2, alpha, True
-                        )
-                        current_power = current_power_result['power'] * 100
-                        
-                        fig_power.add_trace(go.Scatter(
-                            x=[current_total],
-                            y=[current_power],
-                            mode='markers',
-                            name='Your Study Design',
-                            marker=dict(size=12, color='red', symbol='star')
-                        ))
-                        
-                        fig_power.update_layout(
-                            title="Statistical Power vs. Total Sample Size",
-                            xaxis_title="Total Sample Size",
-                            yaxis_title="Statistical Power (%)",
-                            height=400,
-                            yaxis=dict(range=[0, 100])
-                        )
-                        
-                        st.plotly_chart(fig_power, use_container_width=True)
                 
                 # Effect size interpretation
                 st.markdown("#### **Effect Size Interpretation**")
@@ -1358,6 +1629,20 @@ def main():
                 - For 90% power: ~{int(current_n * 1.3)} subjects
                 - For 95% power: ~{int(current_n * 1.6)} subjects
                 """)
+                
+                # Clinical significance guidance
+                st.markdown("#### **Clinical Significance vs Statistical Significance**")
+                st.markdown("""
+                <div class="info-box">
+                <strong>Remember:</strong> Statistical significance doesn't always equal clinical significance. Consider:
+                <ul>
+                <li>Is the detected difference clinically meaningful?</li>
+                <li>What is the minimum clinically important difference (MCID)?</li>
+                <li>Cost-effectiveness of the intervention</li>
+                <li>Patient quality of life improvements</li>
+                </ul>
+                </div>
+                """, unsafe_allow_html=True)
                 
             else:
                 st.info("Please calculate sample size first to view the analysis.")
