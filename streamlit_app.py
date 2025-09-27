@@ -641,58 +641,6 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
                 font=dict(size=14)
             )
             
-        elif study_design == "Two independent study groups" and outcome_type == "Dichotomous (yes/no)":
-            # Proportion difference vs sample size
-            p1_base = base_params.get('p1', 0.3)
-            p2_range = np.linspace(0.05, 0.95, 30)
-            sample_sizes = []
-            
-            for p2 in p2_range:
-                if abs(p1_base - p2) > 0.01:
-                    try:
-                        result = SampleSizeCalculator.calculate_proportions_two_groups(
-                            p1_base, p2, base_params['alpha'], base_params['power'],
-                            dropout_rate=0.0
-                        )
-                        sample_sizes.append(result.get('total_unadjusted', result.get('total', 0)))
-                    except:
-                        sample_sizes.append(np.nan)
-                else:
-                    sample_sizes.append(np.nan)
-            
-            fig1.add_trace(go.Scatter(
-                x=np.abs(p2_range - p1_base), y=sample_sizes,
-                mode='lines+markers',
-                name='Effect Size vs Sample Size',
-                line=dict(color='#2E86AB', width=4),
-                marker=dict(size=8)
-            ))
-            
-            # Add marker for current study
-            current_effect_size = results.get('effect_size', 0)
-            current_sample_size = results.get('total_unadjusted', results.get('total', 0))
-            
-            fig1.add_trace(go.Scatter(
-                x=[current_effect_size],
-                y=[current_sample_size],
-                mode='markers',
-                name='Your Study Design',
-                marker=dict(size=15, color='red', symbol='star',
-                           line=dict(width=2, color='white'))
-            ))
-            
-            fig1.update_layout(
-                title="Effect Size vs Required Sample Size",
-                xaxis_title="Effect Size (Absolute Difference in Proportions)",
-                yaxis_title="Total Sample Size Required",
-                height=500,
-                showlegend=True,
-                font=dict(size=14)
-            )
-            
-        # Similar updates for one group studies...
-
-        
         elif study_design == "One study group vs. population" and outcome_type == "Dichotomous (yes/no)":
                     # Proportion difference vs sample size for one group
                     population_prop = base_params.get('population_prop', 0.25)
@@ -742,6 +690,8 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
                         showlegend=True,
                         font=dict(size=14)
                     )
+                    
+                elif study_design == "One study group vs. population" and outcome_type == "Continuous (means)":
                     
                     
                 elif study_design == "One study group vs. population" and outcome_type == "Continuous (means)":
