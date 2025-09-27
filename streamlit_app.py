@@ -26,6 +26,7 @@ st.markdown("""
         color: white;
         text-align: center;
         margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(40,167,69,0.2);
         
     }
     
@@ -96,27 +97,28 @@ st.markdown("""
     }
     
     /* Fix tab title positioning and remove shadows */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        box-shadow: none;
+.stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+        box-shadow: none !important;
+        border-bottom: 1px solid #dee2e6;
     }
     
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
-        background-color: #f8f9fa;
-        border-radius: 0;
-        gap: 1px;
+        background-color: #f8f9fa !important;
+        border-radius: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
         padding-top: 10px;
         padding-bottom: 10px;
-        box-shadow: none !important;
-        border: none;
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: #ffffff;
+        background-color: #f8f9fa !important;
         box-shadow: none !important;
-        border-bottom: 2px solid #007bff;
+        border-bottom: 3px solid #007bff !important;
+        font-weight: bold;
     }
     
     /* Fix visualization container title positioning */
@@ -689,8 +691,110 @@ def create_enhanced_visualizations(study_design, outcome_type, base_params, resu
             )
             
         # Similar updates for one group studies...
-        
-        st.plotly_chart(fig1, use_container_width=True)
+
+
+        elif study_design == "One study group vs. population" and outcome_type == "Dichotomous (yes/no)":
+                    # Proportion difference vs sample size for one group
+                    population_prop = base_params.get('population_prop', 0.25)
+                    effect_sizes = np.linspace(0.05, 0.4, 30)
+                    sample_sizes = []
+                    
+                    for es in effect_sizes:
+                        sample_prop_test = population_prop + es
+                        if sample_prop_test <= 0.99:
+                            try:
+                                result = SampleSizeCalculator.calculate_proportions_one_group(
+                                    sample_prop_test, population_prop, base_params['alpha'], base_params['power'],
+                                    dropout_rate=0.0
+                                )
+                                sample_sizes.append(result.get('n_unadjusted', result.get('n', 0)))
+                            except:
+                                sample_sizes.append(np.nan)
+                        else:
+                            sample_sizes.append(np.nan)
+                    
+                    fig1.add_trace(go.Scatter(
+                        x=effect_sizes, y=sample_sizes,
+                        mode='lines+markers',
+                        name='Effect Size vs Sample Size',
+                        line=dict(color='#2E86AB', width=4),
+                        marker=dict(size=8)
+                    ))
+                    
+                    # Add marker for current study
+                    current_effect_size = results.get('effect_size', 0)
+                    current_sample_size = results.get('n_unadjusted', results.get('n', 0))
+                    
+                    fig1.add_trace(go.Scatter(
+                        x=[current_effect_size],
+                        y=[current_sample_size],
+                        mode='markers',
+                        name='Your Study Design',
+                        marker=dict(size=15, color='red', symbol='star',
+                                   line=dict(width=2, color='white'))
+                    ))
+                    
+                    fig1.update_layout(
+                        title="Effect Size vs Required Sample Size",
+                        xaxis_title="Effect Size (Absolute Difference in Proportions)",
+                        yaxis_title="Sample Size Required",
+                        height=500,
+                        showlegend=True,
+                        font=dict(size=14)
+                    )
+                    
+                elif study_design == "One study group vs. population" and outcome_type == "Continuous (means)":
+                    # Effect size vs sample size for one-sample continuous
+                    effect_sizes = np.linspace(0.2, 2.0, 30)
+                    sample_sizes = []
+                    
+                    for es in effect_sizes:
+                        mean_diff = es * base_params['std_dev']
+                        try:
+                            result = SampleSizeCalculator.calculate_continuous_one_group(
+                                base_params['population_mean'] + mean_diff,
+                                base_params['population_mean'],
+                                base_params['std_dev'],
+                                base_params['alpha'],
+                                base_params['power'],
+                                dropout_rate=0.0
+                            )
+                            sample_sizes.append(result.get('n_unadjusted', result.get('n', 0)))
+                        except:
+                            sample_sizes.append(np.nan)
+                    
+                    fig1.add_trace(go.Scatter(
+                        x=effect_sizes, y=sample_sizes,
+                        mode='lines+markers',
+                        name='Effect Size vs Sample Size',
+                        line=dict(color='#2E86AB', width=4),
+                        marker=dict(size=8)
+                    ))
+                    
+                    # Add marker for current study
+                    current_effect_size = results.get('effect_size', 0)
+                    current_sample_size = results.get('n_unadjusted', results.get('n', 0))
+                    
+                    fig1.add_trace(go.Scatter(
+                        x=[current_effect_size],
+                        y=[current_sample_size],
+                        mode='markers',
+                        name='Your Study Design',
+                        marker=dict(size=15, color='red', symbol='star',
+                                   line=dict(width=2, color='white'))
+                    ))
+                    
+                    fig1.update_layout(
+                        title="Effect Size vs Required Sample Size",
+                        xaxis_title="Effect Size (Cohen's d)",
+                        yaxis_title="Sample Size Required",
+                        height=500,
+                        showlegend=True,
+                        font=dict(size=14)
+                    )
+                
+                st.plotly_chart(fig1, use_container_width=True)
+
     
     with tab2:
         # Power Analysis
